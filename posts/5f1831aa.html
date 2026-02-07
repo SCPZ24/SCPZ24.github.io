@@ -1,0 +1,252 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>pytorch入门 | SCPZ24-blog</title><meta name="author" content="SCPZ24"><meta name="copyright" content="SCPZ24"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="TensorExactly the same action with numpy.array.Doing sections returns a smaller tensor even it’s only one number. Use tensor.item() to extract the single value. Auto GradPytorch works out gradient for">
+<meta property="og:type" content="article">
+<meta property="og:title" content="pytorch入门">
+<meta property="og:url" content="http://example.com/posts/5f1831aa.html">
+<meta property="og:site_name" content="SCPZ24-blog">
+<meta property="og:description" content="TensorExactly the same action with numpy.array.Doing sections returns a smaller tensor even it’s only one number. Use tensor.item() to extract the single value. Auto GradPytorch works out gradient for">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://example.com/img/OldWu.png">
+<meta property="article:published_time" content="2025-10-18T13:36:00.000Z">
+<meta property="article:modified_time" content="2025-02-04T11:48:00.000Z">
+<meta property="article:author" content="SCPZ24">
+<meta property="article:tag" content="pytorch">
+<meta property="article:tag" content="梯度">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://example.com/img/OldWu.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "pytorch入门",
+  "url": "http://example.com/posts/5f1831aa.html",
+  "image": "http://example.com/img/OldWu.png",
+  "datePublished": "2025-10-18T13:36:00.000Z",
+  "dateModified": "2025-02-04T11:48:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "SCPZ24",
+      "url": "https://SCPZ24.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/lpls.png"><link rel="canonical" href="http://example.com/posts/5f1831aa.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@6.1.9/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"top_n_per_article":1,"unescape":false,"pagination":{"enable":false,"hitsPerPage":8},"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: {"defaultEncoding":2,"translateDelay":0,"msgToTraditionalChinese":"繁","msgToSimplifiedChinese":"簡"},
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: true,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'pytorch入门',
+  isHighlightShrink: true,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="bg-animation" id="web_bg" style="background: linear-gradient(20deg, #fffbeb, #ecfdf5);"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/OldWu.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">24</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">42</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/link/"><i class="fa-fw fas fa-link"></i><span> 链接</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">SCPZ24-blog</span></a><a class="nav-page-title" href="/"><span class="site-name">pytorch入门</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/link/"><i class="fa-fw fas fa-link"></i><span> 链接</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">pytorch入门</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon fas fa-history"></i><span class="post-meta-label">更新于</span><time datetime="2025-02-04T11:48:00.000Z" title="更新于 2025-02-04 19:48:00">2025-02-04</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E8%87%AA%E7%84%B6%E8%AF%AD%E8%A8%80%E5%A4%84%E7%90%86-CS224n-%E7%AC%94%E8%AE%B0/">自然语言处理(CS224n)笔记</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="Tensor"><a href="#Tensor" class="headerlink" title="Tensor"></a>Tensor</h1><p>Exactly the same action with <code>numpy.array</code>.<br>Doing sections returns a smaller tensor even it’s only one number. Use <code>tensor.item()</code> to extract the single value.</p>
+<h1 id="Auto-Grad"><a href="#Auto-Grad" class="headerlink" title="Auto Grad"></a>Auto Grad</h1><p>Pytorch works out gradient for every tensor automatically.<br>We can activate the auto grad system for a tensor when defining it.<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">x = torch.tensor([<span class="number">2.</span>], requires_grad=<span class="literal">True</span>)</span><br><span class="line"></span><br><span class="line">y = x * x * <span class="number">3</span> <span class="comment">#define a function y=f(x) here, and y is also a tensor.</span></span><br><span class="line"></span><br><span class="line">y.backward()</span><br><span class="line"><span class="built_in">print</span>(x.grad) <span class="comment"># returns 12</span></span><br></pre></td></tr></table></figure><br>If x is forward propagated to multiple variables, it’s gradient will be added up from all gradients passed back.<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line">x.grad = <span class="literal">None</span></span><br><span class="line"></span><br><span class="line">z = x * x * <span class="number">3</span> <span class="comment"># 3x^2</span></span><br><span class="line"></span><br><span class="line">z.backward() <span class="comment">#passes gradient 12 to x</span></span><br><span class="line">y.backward() <span class="comment">#passes gradient 12 to x</span></span><br><span class="line"><span class="comment"># y = x * x * 3</span></span><br><span class="line"></span><br><span class="line"><span class="built_in">print</span>(x.grad) <span class="comment">#returns 24 = 12 + 12.</span></span><br></pre></td></tr></table></figure><br>So during backward propagation, the gradient to a node is accumulated up.<br>Run <code>zero_grad()</code> to clear all the grad before every training iteration.</p>
+<h1 id="Neural-Network-Layers"><a href="#Neural-Network-Layers" class="headerlink" title="Neural Network Layers"></a>Neural Network Layers</h1><p>We need to import the <code>nn</code> module.<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> torch.nn <span class="keyword">as</span> nn</span><br></pre></td></tr></table></figure></p>
+<h2 id="Linear-Layer"><a href="#Linear-Layer" class="headerlink" title="Linear Layer"></a>Linear Layer</h2><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Create the inputs</span></span><br><span class="line"><span class="built_in">input</span> = torch.ones(<span class="number">2</span>,<span class="number">3</span>,<span class="number">4</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># Make a linear layers transforming N,*,H_in dimensinal inputs to N,*,H_out dimensional outputs</span></span><br><span class="line">linear = nn.Linear(<span class="number">4</span>, <span class="number">2</span>)</span><br><span class="line"></span><br><span class="line">linear_output = linear(<span class="built_in">input</span>)</span><br><span class="line"></span><br><span class="line"><span class="built_in">print</span>(linear_output.shape)</span><br><span class="line"><span class="comment">#output:torch.Size([2, 3, 2])</span></span><br></pre></td></tr></table></figure>
+<p>In the code above, input size is <code>2,3,4</code>.<br>The first number <code>2</code> is the batch size dimension. The after are matrices that contains datas.</p>
+<h2 id="Activation-Function-Layer"><a href="#Activation-Function-Layer" class="headerlink" title="Activation Function Layer"></a>Activation Function Layer</h2><p>Some examples of activations functions are <code>nn.ReLU()</code>, <code>nn.Sigmoid()</code> and <code>nn.LeakyReLU()</code>.</p>
+<h2 id="Encapsulating-the-Layers"><a href="#Encapsulating-the-Layers" class="headerlink" title="Encapsulating the Layers"></a>Encapsulating the Layers</h2><p>We can use <code>nn.Sequential(layers...)</code> to capture different layers in a container.<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">block = nn.Sequential(</span><br><span class="line">	nn.Linear(<span class="number">4</span>, <span class="number">2</span>),</span><br><span class="line">	nn.Sigmoid()</span><br><span class="line">)</span><br><span class="line"></span><br><span class="line"><span class="built_in">input</span> = torch.ones(<span class="number">2</span>,<span class="number">3</span>,<span class="number">4</span>)</span><br><span class="line"></span><br><span class="line">output = block(<span class="built_in">input</span>)</span><br></pre></td></tr></table></figure></p>
+<h1 id="Neural-Network-Implement"><a href="#Neural-Network-Implement" class="headerlink" title="Neural Network Implement"></a>Neural Network Implement</h1><p>A neural network should extend the class <code>nn.Module</code>.<br>Implement the <code>__init__()</code> function. Call the constructor of super class first. Define some variables to store some information(e.g. size). Then declare the layers in the network.<br>Override the forward() function to predict an output based on the inputs.<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">MultilayerPerceptron</span>(nn.Module):</span><br><span class="line"></span><br><span class="line">  <span class="keyword">def</span> <span class="title function_">__init__</span>(<span class="params">self, input_size, hidden_size</span>):</span><br><span class="line">    <span class="comment"># Call to the __init__ function of the super class</span></span><br><span class="line">    <span class="built_in">super</span>(MultilayerPerceptron, <span class="variable language_">self</span>).__init__()</span><br><span class="line"></span><br><span class="line">    <span class="comment"># Bookkeeping: Saving the initialization parameters</span></span><br><span class="line">    <span class="variable language_">self</span>.input_size = input_size</span><br><span class="line">    <span class="variable language_">self</span>.hidden_size = hidden_size</span><br><span class="line"></span><br><span class="line">    <span class="comment"># Defining of our model</span></span><br><span class="line">    <span class="comment"># There isn&#x27;t anything specific about the naming of `self.model`. It could</span></span><br><span class="line">    <span class="comment"># be something arbitrary.</span></span><br><span class="line">    <span class="variable language_">self</span>.model = nn.Sequential(</span><br><span class="line">        nn.Linear(<span class="variable language_">self</span>.input_size, <span class="variable language_">self</span>.hidden_size),</span><br><span class="line">        nn.ReLU(),</span><br><span class="line">        nn.Linear(<span class="variable language_">self</span>.hidden_size, <span class="variable language_">self</span>.input_size),</span><br><span class="line">        nn.Sigmoid()</span><br><span class="line">    )</span><br><span class="line"></span><br><span class="line">  <span class="keyword">def</span> <span class="title function_">forward</span>(<span class="params">self, x</span>):</span><br><span class="line">    output = <span class="variable language_">self</span>.model(x)</span><br><span class="line">    <span class="keyword">return</span> output</span><br></pre></td></tr></table></figure><br>Another way to declare the layers are as follows.<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">class</span> <span class="title class_">MultilayerPerceptron</span>(nn.Module):</span><br><span class="line"></span><br><span class="line">  <span class="keyword">def</span> <span class="title function_">__init__</span>(<span class="params">self, input_size, hidden_size</span>):</span><br><span class="line">    <span class="comment"># Call to the __init__ function of the super class</span></span><br><span class="line">    <span class="built_in">super</span>(MultilayerPerceptron, <span class="variable language_">self</span>).__init__()</span><br><span class="line"></span><br><span class="line">    <span class="comment"># Bookkeeping: Saving the initialization parameters</span></span><br><span class="line">    <span class="variable language_">self</span>.input_size = input_size</span><br><span class="line">    <span class="variable language_">self</span>.hidden_size = hidden_size</span><br><span class="line"></span><br><span class="line">    <span class="comment"># Defining of our layers</span></span><br><span class="line">    <span class="variable language_">self</span>.linear = nn.Linear(<span class="variable language_">self</span>.input_size, <span class="variable language_">self</span>.hidden_size)</span><br><span class="line">    <span class="variable language_">self</span>.relu = nn.ReLU()</span><br><span class="line">    <span class="variable language_">self</span>.linear2 = nn.Linear(<span class="variable language_">self</span>.hidden_size, <span class="variable language_">self</span>.input_size)</span><br><span class="line">    <span class="variable language_">self</span>.sigmoid = nn.Sigmoid()</span><br><span class="line"></span><br><span class="line">  <span class="keyword">def</span> <span class="title function_">forward</span>(<span class="params">self, x</span>):</span><br><span class="line">    linear = <span class="variable language_">self</span>.linear(x)</span><br><span class="line">    relu = <span class="variable language_">self</span>.relu(linear)</span><br><span class="line">    linear2 = <span class="variable language_">self</span>.linear2(relu)</span><br><span class="line">    output = <span class="variable language_">self</span>.sigmoid(linear2)</span><br><span class="line">    <span class="keyword">return</span> output</span><br></pre></td></tr></table></figure><br>To use our network, create an instance of the class.<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Make a sample input</span></span><br><span class="line"><span class="built_in">input</span> = torch.randn(<span class="number">2</span>, <span class="number">5</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># Create our model</span></span><br><span class="line">model = MultilayerPerceptron(<span class="number">5</span>, <span class="number">3</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># Pass our input through our model</span></span><br><span class="line">predict = model(<span class="built_in">input</span>)</span><br><span class="line"></span><br><span class="line"><span class="built_in">print</span>(predict)</span><br></pre></td></tr></table></figure></p>
+<h1 id="Procedure-of-Optimizing"><a href="#Procedure-of-Optimizing" class="headerlink" title="Procedure of Optimizing"></a>Procedure of Optimizing</h1><p>Once the model class is defined and dataset is ready, we can optimize the parameters in a fixed procedure.<br>We need to import the module first.<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">import</span> torch.optim <span class="keyword">as</span> optim</span><br></pre></td></tr></table></figure></p>
+<h2 id="Initialize-the-Variables"><a href="#Initialize-the-Variables" class="headerlink" title="Initialize the Variables"></a>Initialize the Variables</h2><p>Create instances of out model, optimizer, loss function.<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Instantiate the model</span></span><br><span class="line">model = MultilayerPerceptron(<span class="number">5</span>, <span class="number">3</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># Define the optimizer</span></span><br><span class="line">optimizer = optim.Adam(model.parameters(), lr=<span class="number">1e-1</span>)</span><br><span class="line"></span><br><span class="line"><span class="comment"># Define loss using a predefined loss function</span></span><br><span class="line">loss_function = nn.MSELoss()</span><br></pre></td></tr></table></figure></p>
+<h2 id="Train-in-Loops"><a href="#Train-in-Loops" class="headerlink" title="Train in Loops"></a>Train in Loops</h2><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># Set the number of epoch, which determines the number of training iterations</span></span><br><span class="line">n_epoch = <span class="number">10</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> epoch <span class="keyword">in</span> <span class="built_in">range</span>(n_epoch):</span><br><span class="line">  <span class="comment"># Set the gradients to 0</span></span><br><span class="line">  optimizer.zero_grad()</span><br><span class="line"></span><br><span class="line">  <span class="comment"># Get the model predictions</span></span><br><span class="line">  y_pred = model(x)</span><br><span class="line"></span><br><span class="line">  <span class="comment"># Get the loss</span></span><br><span class="line">  loss = loss_function(y_pred, y)</span><br><span class="line"></span><br><span class="line">  <span class="comment"># Print stats</span></span><br><span class="line">  <span class="built_in">print</span>(<span class="string">f&quot;Epoch <span class="subst">&#123;epoch&#125;</span>: traing loss: <span class="subst">&#123;loss&#125;</span>&quot;</span>)</span><br><span class="line"></span><br><span class="line">  <span class="comment"># Compute the gradients</span></span><br><span class="line">  loss.backward()</span><br><span class="line"></span><br><span class="line">  <span class="comment"># Take a step to optimize the weights</span></span><br><span class="line">  optimizer.step()</span><br></pre></td></tr></table></figure>
+<p>Some other code such as calculating and printing the accuracy of training in every epoch can be added to the loop statement.</p>
+<h1 id="DataLoader"><a href="#DataLoader" class="headerlink" title="DataLoader"></a>DataLoader</h1><p>DataLoader is a tool that can yield datas in batches.<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">from</span> torch.utils.data <span class="keyword">import</span> DataLoader</span><br></pre></td></tr></table></figure></p>
+<h2 id="Create-a-Loader"><a href="#Create-a-Loader" class="headerlink" title="Create a Loader"></a>Create a Loader</h2><p>The statement is<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">loader = DataLoader(data, batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn)</span><br></pre></td></tr></table></figure><br>in which, <code>collate_fn</code> is the function that implements to a batch of data. It should have only one parameter: the batched data.<br>Different loaders can be integrate to train a model such as <code>train_x</code>, <code>train_y</code>, <code>test_x</code>, <code>test_y</code>.<br>Also, data and labels can be zipped into a same loader.</p>
+<h2 id="Yield-from-a-Loader"><a href="#Yield-from-a-Loader" class="headerlink" title="Yield from a Loader"></a>Yield from a Loader</h2><p>When training, load data with loader.<br>Use a for loop. For each iteration, we have inputs, labels, and batch size.<br><figure class="highlight python"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">def</span> <span class="title function_">train_epoch</span>(<span class="params">loss_function, optimizer, model, loader</span>):</span><br><span class="line"><span class="comment"># Keep track of the total loss for the batch</span></span><br><span class="line">total_loss = <span class="number">0</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">for</span> batch_inputs, batch_labels, batch_lengths <span class="keyword">in</span> loader:</span><br><span class="line">	<span class="comment"># Clear the gradients</span></span><br><span class="line">	optimizer.zero_grad()</span><br><span class="line">	</span><br><span class="line">	<span class="comment"># Run a forward pass</span></span><br><span class="line">	outputs = model.forward(batch_inputs)</span><br><span class="line">	</span><br><span class="line">	<span class="comment"># Compute the batch loss</span></span><br><span class="line">	loss = loss_function(outputs, batch_labels, batch_lengths)</span><br><span class="line">	</span><br><span class="line">	<span class="comment"># Calculate the gradients</span></span><br><span class="line">	loss.backward()</span><br><span class="line">	</span><br><span class="line">	<span class="comment"># Update the parameteres</span></span><br><span class="line">	optimizer.step()</span><br><span class="line">	</span><br><span class="line">	total_loss += loss.item()</span><br><span class="line"></span><br><span class="line"><span class="keyword">return</span> total_loss</span><br></pre></td></tr></table></figure></p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://SCPZ24.github.io">SCPZ24</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://example.com/posts/5f1831aa.html">http://example.com/posts/5f1831aa.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://example.com" target="_blank">SCPZ24-blog</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/%E6%A2%AF%E5%BA%A6/">梯度</a><a class="post-meta__tags" href="/tags/pytorch/">pytorch</a></div><div class="post-share"><div class="social-share" data-image="/img/OldWu.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/39a9d4ee.html" title="循环神经网络-导论"><img class="cover" src="/img/MIT6036/%E5%BE%AA%E7%8E%AF%E7%A5%9E%E7%BB%8F%E7%BD%91%E7%BB%9C%E7%BB%93%E6%9E%84%E7%A4%BA%E6%84%8F%E5%9B%BE.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="fas fa-history fa-fw"></i> 2025-05-11</div><div class="info-item-2">循环神经网络-导论</div></div><div class="info-2"><div class="info-item-1">ComponentsRNN（循环神经网络）也可以理解为一个状态机。假设讨论第$t$轮，其state是一个$m \times 1$向量$s_t$。输入向量$x_t$，可以认为是$1 \times 1$（Special Case），也可以认为是$c \times 1$。预测向量$p_t$，为$v \times 1$，为一个链结的输出值。线性操作的矩阵：  外界输入向量$x_t$前面的系数矩阵$W^{sx}$，为$m \times c$ 上一轮迭代向量$s_{t-1}$前面的系数矩阵$W^{ss}$，为$m \times m$ 常数矩阵$W_0^{ss}$，为$m \times 1$ 获取$p_t$的激活函数（第二次激活函数）前的线性变换矩阵$W^o$（$v \times m$）与$W_0^o$（$v \times 1$）Operations for Each Layer已知输入向量x_t，状态向量s_{t-1}。则线性变换有 z_t^1 = W^{sx}x_t + W^{ss}s_{t-1} + W_0^{ss}转入激活函数$f_1$得$s_t$ s_t = f_1(z_t^1)这个...</div></div></div></a><a class="pagination-related" href="/posts/becca920.html" title="逻辑回归"><img class="cover" src="/img/MIT6036/%E4%BA%8C%E7%BB%B4%E6%95%B0%E6%8D%AE%E7%9A%84Sigmoid%E5%87%BD%E6%95%B0%E4%B8%BE%E4%BE%8B.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="fas fa-history fa-fw"></i> 2025-04-30</div><div class="info-item-2">逻辑回归</div></div><div class="info-2"><div class="info-item-1">Linear Logistic Classification有时候给出的数据集无法被Linearly Separate。因此在交汇区域（有+1的数据点也有-1的数据点），我们可以认为是一个概率问题。在其他区域，有产出+1的概率为1或-1的概率为1。而在交汇区域，产出+1的概率为介于0到1中间的某值。因此我们需要一个平滑的曲线（而非跳跃点）来描述样本-产出值的概率。假设$A$为样本点产出的数据为+1，则$\overline{A}$表示样本数据点的产出为-1。Linear Logistic Classification可以用于描述$P(A)$的一个函数。典型的用于Linear Logistic Classification的函数：  \begin{matrix}Sigmoid/Logistic\,\,Function\\\sigma(z)=\frac{1}{1+e^{-z}}\end{matrix}Sigmoid函数不一定能用于预测所有的情况。有时候需要对传入的数据做几何变换（乘系数θ，加常数θ）。因此可以表示为：  g(x)=\sigma(\theta x+\theta_0)=\f...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/OldWu.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">SCPZ24</div><div class="author-info-description">软件工程大二学生，努力成为极客中。</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">24</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">42</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">2</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/SCPZ24"><i class="fab fa-github"></i><span>Github</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">我的机器学习导论(MIT6.036)和自然语言处理(CS224n)笔记现已上传。欢迎参考交流。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#Tensor"><span class="toc-number">1.</span> <span class="toc-text">Tensor</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Auto-Grad"><span class="toc-number">2.</span> <span class="toc-text">Auto Grad</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Neural-Network-Layers"><span class="toc-number">3.</span> <span class="toc-text">Neural Network Layers</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#Linear-Layer"><span class="toc-number">3.1.</span> <span class="toc-text">Linear Layer</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Activation-Function-Layer"><span class="toc-number">3.2.</span> <span class="toc-text">Activation Function Layer</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Encapsulating-the-Layers"><span class="toc-number">3.3.</span> <span class="toc-text">Encapsulating the Layers</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Neural-Network-Implement"><span class="toc-number">4.</span> <span class="toc-text">Neural Network Implement</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Procedure-of-Optimizing"><span class="toc-number">5.</span> <span class="toc-text">Procedure of Optimizing</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#Initialize-the-Variables"><span class="toc-number">5.1.</span> <span class="toc-text">Initialize the Variables</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Train-in-Loops"><span class="toc-number">5.2.</span> <span class="toc-text">Train in Loops</span></a></li></ol></li><li class="toc-item toc-level-1"><a class="toc-link" href="#DataLoader"><span class="toc-number">6.</span> <span class="toc-text">DataLoader</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#Create-a-Loader"><span class="toc-number">6.1.</span> <span class="toc-text">Create a Loader</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Yield-from-a-Loader"><span class="toc-number">6.2.</span> <span class="toc-text">Yield from a Loader</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/posts/4a42f569.html" title="卷积神经网络和树递归神经网络"><img src="/img/CS224n/%E6%88%AA%E5%B1%8F2025-11-12%2011.58.16.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="卷积神经网络和树递归神经网络"/></a><div class="content"><a class="title" href="/posts/4a42f569.html" title="卷积神经网络和树递归神经网络">卷积神经网络和树递归神经网络</a><time datetime="2025-11-12T00:56:00.000Z" title="发表于 2025-11-12 08:56:00">2025-11-12</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/posts/a7b1f35d.html" title="训练优化"><img src="/img/CS224n/%E6%88%AA%E5%B1%8F2025-11-07%2021.26.04.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="训练优化"/></a><div class="content"><a class="title" href="/posts/a7b1f35d.html" title="训练优化">训练优化</a><time datetime="2025-11-07T03:21:00.000Z" title="发表于 2025-11-07 11:21:00">2025-11-07</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/8c119005.html" title="HuggingFace入门">HuggingFace入门</a><time datetime="2025-11-02T04:55:00.000Z" title="发表于 2025-11-02 12:55:00">2025-11-02</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By SCPZ24</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="translateLink" type="button" title="简繁转换">繁</button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><script src="/js/tw_cn.js?v=5.5.4"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@6.1.9/dist/fancybox/fancybox.umd.min.js"></script><div class="js-pjax"><script>(() => {
+  const loadMathjax = () => {
+    if (!window.MathJax) {
+      window.MathJax = {
+        loader: {
+          load: [
+            // Four font extension packages (optional)
+            //- '[tex]/bbm',
+            //- '[tex]/bboldx',
+            //- '[tex]/dsfont',
+            '[tex]/mhchem'
+          ],
+          paths: {
+            'mathjax-newcm': '[mathjax]/../@mathjax/mathjax-newcm-font',
+
+            //- // Four font extension packages (optional)
+            //- 'mathjax-bbm-extension': '[mathjax]/../@mathjax/mathjax-bbm-font-extension',
+            //- 'mathjax-bboldx-extension': '[mathjax]/../@mathjax/mathjax-bboldx-font-extension',
+            //- 'mathjax-dsfont-extension': '[mathjax]/../@mathjax/mathjax-dsfont-font-extension',
+            'mathjax-mhchem-extension': '[mathjax]/../@mathjax/mathjax-mhchem-font-extension'
+          }
+        },
+        output: {
+          font: 'mathjax-newcm',
+        },
+        tex: {
+          inlineMath: [['$', '$'], ['\\(', '\\)']],
+          tags: 'ams',
+          packages: {
+            '[+]': [
+              'mhchem'
+            ]
+          }
+        },
+        chtml: {
+          scale: 1.1
+        },
+        options: {
+          enableMenu: true,
+          menuOptions: {
+            settings: {
+              enrich: false  // Turn off Braille and voice narration text automatic generation
+            }
+          },
+          renderActions: {
+            findScript: [10, doc => {
+              for (const node of document.querySelectorAll('script[type^="math/tex"]')) {
+                const display = !!node.type.match(/; *mode=display/)
+                const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display)
+                const text = document.createTextNode('')
+                node.parentNode.replaceChild(text, node)
+                math.start = {node: text, delim: '', n: 0}
+                math.end = {node: text, delim: '', n: 0}
+                doc.math.push(math)
+              }
+            }, '']
+          }
+        }
+      }
+
+      const script = document.createElement('script')
+      script.src = 'https://cdn.jsdelivr.net/npm/mathjax@4.1.0/tex-mml-chtml.min.js'
+      script.id = 'MathJax-script'
+      script.async = true
+      document.head.appendChild(script)
+    } else {
+      MathJax.startup.document.state(0)
+      MathJax.texReset()
+      MathJax.typesetPromise()
+    }
+  }
+
+  btf.addGlobalFn('encrypt', loadMathjax, 'mathjax')
+  window.pjax ? loadMathjax() : window.addEventListener('load', loadMathjax)
+})()</script></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><i class="fas fa-spinner fa-pulse" id="loading-status" hidden="hidden"></i><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="local-search-input"><input placeholder="搜索文章" type="text"/></div><hr/><div id="local-search-results"></div><div class="ais-Pagination" id="local-search-pagination" style="display:none;"><ul class="ais-Pagination-list"></ul></div><div id="local-search-stats"></div></div><div id="search-mask"></div><script src="/js/search/local-search.js?v=5.5.4"></script></div></div></body></html>
