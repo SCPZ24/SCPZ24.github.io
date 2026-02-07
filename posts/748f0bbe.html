@@ -1,0 +1,268 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>强化学习 | SCPZ24-blog</title><meta name="author" content="SCPZ24"><meta name="copyright" content="SCPZ24"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="Definition与马尔可夫决策过程不同的是，强化学习是当智能体进入一个陌生的环境中，并不知道奖励和转换矩阵，智能体需要做出操作并依据反馈学习周围的环境。即进入陌生环境后，依然有状态机$S$和操作集合$A$，但不知道所有的转移概率$T$与奖励$R$。 Exploration &amp; Exploitation智能体笼统地有两种策略：探索和利用。智能体被投放入陌生环境后，假设会进行无限轮操作。其">
+<meta property="og:type" content="article">
+<meta property="og:title" content="强化学习">
+<meta property="og:url" content="http://example.com/posts/748f0bbe.html">
+<meta property="og:site_name" content="SCPZ24-blog">
+<meta property="og:description" content="Definition与马尔可夫决策过程不同的是，强化学习是当智能体进入一个陌生的环境中，并不知道奖励和转换矩阵，智能体需要做出操作并依据反馈学习周围的环境。即进入陌生环境后，依然有状态机$S$和操作集合$A$，但不知道所有的转移概率$T$与奖励$R$。 Exploration &amp; Exploitation智能体笼统地有两种策略：探索和利用。智能体被投放入陌生环境后，假设会进行无限轮操作。其">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="http://example.com/img/OldWu.png">
+<meta property="article:published_time" content="2025-05-08T07:53:00.000Z">
+<meta property="article:modified_time" content="2025-05-08T07:53:00.000Z">
+<meta property="article:author" content="SCPZ24">
+<meta property="article:tag" content="MDP">
+<meta property="article:tag" content="RL">
+<meta property="article:tag" content="最优Q策略">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="http://example.com/img/OldWu.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "强化学习",
+  "url": "http://example.com/posts/748f0bbe.html",
+  "image": "http://example.com/img/OldWu.png",
+  "datePublished": "2025-05-08T07:53:00.000Z",
+  "dateModified": "2025-05-08T07:53:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "SCPZ24",
+      "url": "https://SCPZ24.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/lpls.png"><link rel="canonical" href="http://example.com/posts/748f0bbe.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.5.4"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fancyapps/ui@6.1.9/dist/fancybox/fancybox.min.css" media="print" onload="this.media='all'"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: {"path":"/search.xml","preload":false,"top_n_per_article":1,"unescape":false,"pagination":{"enable":false,"hitsPerPage":8},"languages":{"hits_empty":"未找到符合您查询的内容：${query}","hits_stats":"共找到 ${hits} 篇文章"}},
+  translate: {"defaultEncoding":2,"translateDelay":0,"msgToTraditionalChinese":"繁","msgToSimplifiedChinese":"簡"},
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'fancybox',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: true,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '强化学习',
+  isHighlightShrink: true,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="bg-animation" id="web_bg" style="background: linear-gradient(20deg, #fffbeb, #ecfdf5);"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/OldWu.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">12</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">18</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/link/"><i class="fa-fw fas fa-link"></i><span> 链接</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">SCPZ24-blog</span></a><a class="nav-page-title" href="/"><span class="site-name">强化学习</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div id="search-button"><span class="site-page social-icon search"><i class="fas fa-search fa-fw"></i><span> 搜索</span></span></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/link/"><i class="fa-fw fas fa-link"></i><span> 链接</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">强化学习</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="fa-fw post-meta-icon fas fa-history"></i><span class="post-meta-label">更新于</span><time datetime="2025-05-08T07:53:00.000Z" title="更新于 2025-05-08 15:53:00">2025-05-08</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/%E6%9C%BA%E5%99%A8%E5%AD%A6%E4%B9%A0%E5%AF%BC%E8%AE%BA-MIT6-036-%E7%AC%94%E8%AE%B0/">机器学习导论(MIT6.036)笔记</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h1 id="Definition"><a href="#Definition" class="headerlink" title="Definition"></a>Definition</h1><p>与<a href="/posts/11aff4a7.html" title="马尔可夫决策过程">马尔可夫决策过程</a>不同的是，强化学习是当智能体进入一个陌生的环境中，并不知道奖励和转换矩阵，智能体需要做出操作并依据反馈学习周围的环境。<br>即进入陌生环境后，依然有状态机$S$和操作集合$A$，但不知道所有的转移概率$T$与奖励$R$。</p>
+<h1 id="Exploration-amp-Exploitation"><a href="#Exploration-amp-Exploitation" class="headerlink" title="Exploration &amp; Exploitation"></a>Exploration &amp; Exploitation</h1><p>智能体笼统地有两种策略：探索和利用。<br>智能体被投放入陌生环境后，假设会进行无限轮操作。其目的是获取尽可能大的Reward。<br>Exploration策略为探索环境中的信息<br>    操作为不管环境为何种情况，完全随机选择一个$a\in A$当做该轮操作。<br>Exploitation为基于获取的信息做出最优的决策<br>    操作为基于搜集到的信息和当前的$s$决策出最优的行为$a$。<br>为了获得更好的Reward，智能体需要权衡Exploration和Exploitation的操作比例。<br>我们用$\epsilon$来表示权衡的比例。<br>$\epsilon\in (0,1)$，我们认为有$1-\epsilon$的概率采取Exploitation策略，有$\epsilon$的概率采取Exploration策略。<br>实际上，每一步操作都会有信息的摄入，即$R(s,a)，s_{new}$。</p>
+<h1 id="Searching-for-Optimal-Policy-By-T-and-R"><a href="#Searching-for-Optimal-Policy-By-T-and-R" class="headerlink" title="Searching for Optimal Policy By $T$ and $R$"></a>Searching for Optimal Policy By $T$ and $R$</h1><p>可以通过持续从环境中学习到更准确的$T$和$R$值。</p>
+<ol>
+<li>初始化智能体状态：$s^{(1)}=s_0$</li>
+<li>初始化$T$：对任何的$s,a,s^{‘}$，我们有$\widehat{T}(s,a,s^{‘})=\frac{1}{|S|}，\widehat{R}(s,a)=0$</li>
+<li>对于第$t$轮迭代：</li>
+</ol>
+<ul>
+<li>基于$\epsilon$选择操作$a^{(t)}$。</li>
+<li>执行操作$a^{(t)}$，获得更新的该情况下的收益$r^{(t)}$与下一轮得到的状态$s^{(t+1)}$。</li>
+<li>更新：<br>$\widehat{R}(s^{(t)},a^{(t)})=r^{(t)}$<script type="math/tex; mode=display">
+\widehat{T}(s,a,s^{'}) = \frac{1 + \sum_{i=1}^t \mathbb{I}(s^{(i)}=s, a^{(i)}=a, s^{(i+1)}=s^{'})}{|S| + \sum_{i=1}^t \mathbb{I}(s^{(i)}=s, a^{(i)}=a)}</script>实质即假设在$s$状态下的$a$操作中，原本变为任何一个$s^{‘}$的情况都发生过1次。<br>随着迭代，如果某轮发现$s$状态下的$a$操作后产出一个$s^{‘}$，那变为$s^{‘}$的情况计数（频数）加一。<br>若干次迭代后，可以依据频数推出各个$s^{‘}$的$\widehat{T}(s,a,s^{‘})$。<br>数据量充足后，各个$s^{‘}$初始化默认发生过的1次会收敛掉。<br>依据新的$\widehat{R}$、$\widehat{T}(s,a,s^{‘})$预测新的$Q$以及更新策略$\pi$。<br>在实际操作中，$\epsilon$不一定为常数。起初，可以让$\epsilon$大一些，随着探索轮数变多，其实可以认为对环境系统的认知已经收敛至真实情况，这时可以让$\epsilon$变小。</li>
+</ul>
+<h1 id="Searching-for-Optimal-Policy-By-Q"><a href="#Searching-for-Optimal-Policy-By-Q" class="headerlink" title="Searching for Optimal Policy By $Q$"></a>Searching for Optimal Policy By $Q$</h1><h2 id="Expected-Values"><a href="#Expected-Values" class="headerlink" title="Expected Values"></a>Expected Values</h2><p>首先讨论一下各种期望值。<br>经典期望值</p>
+<script type="math/tex; mode=display">
+\widetilde{E}^{(t)}=\frac{1}{t}\sum_{i=1}^tx^{(i)}</script><p>运行时期望值：每一轮产生一个期望值，新输入值之后基于迭代轮数、旧期望值产生新期望值。<br>已知$\widetilde{E}^{(0)}=0，\alpha^{(t)}=\frac{1}{t}$，则有</p>
+<script type="math/tex; mode=display">
+\widetilde{E}^{(t)}=(1-\alpha^{(t)})\widetilde{E}^{(t-1)}+\alpha^{(t)}x^{(t)}</script><p>变化版运行时均值：任何$\alpha^{(t)}$都为一个常数$\alpha$。</p>
+<script type="math/tex; mode=display">
+\widetilde{E}^{(t)}=(1-\alpha)\widetilde{E}^{(t-1)}+\alpha x^{(t)}</script><p>可由递推得通项公式：$\widetilde{E}^{(t)}=\sum_{i=1}^t(1-\alpha)^{t-i}\alpha x^{(t)}$<br>运行时均值其实对后输入的值权重更大。</p>
+<h2 id="Estimate-Q"><a href="#Estimate-Q" class="headerlink" title="Estimate Q"></a>Estimate Q</h2><p>已有Q的迭代公式</p>
+<script type="math/tex; mode=display">
+Q_{new}=R(s,a)+\gamma\sum_{s^{'}\in S}T(s,a,s^{'})max_{a^{'}}Q_{old}(s^{'},a^{'})</script><p>化成概率×值加和的形式为</p>
+<script type="math/tex; mode=display">
+Q_{new}=\sum_{s^{'}\in S}T(s,a,s^{'})(R(s,a)+\gamma max_{a^{'}}Q_{old}(s^{'},a^{'}))</script><p>这就是一个均值的形成方式。<br>基于上述的变化版运行时均值，可以把这个公式近似成用于迭代更新$Q(s,a)$的方法(其中箭头表示取代被指向的值)</p>
+<script type="math/tex; mode=display">
+Q(s,a)\leftarrow (1-\alpha)Q(s,a)+\alpha(R(s,a)+\gamma max_{a^{'}}Q_{old}(s^{'},a^{'}))</script><p>公式中保留<script type="math/tex">Q_{old}</script>作用不大，直接用当前轮的<script type="math/tex">Q</script>替换<script type="math/tex">Q_{old}</script>；<script type="math/tex">R(s,a)</script>其实就是这一轮读取到的Reward，记为<script type="math/tex">r</script>。则有简化版迭代公式</p>
+<script type="math/tex; mode=display">
+Q(s,a)\leftarrow (1-\alpha)Q(s,a)+\alpha(r+\gamma max_{a^{'}}Q(s^{'},a^{'}))</script><p>可以用这种方法替换掉上一种学习方式中对$T,R$的迭代。<br>当需要采取Exploitation策略时：对于给定$s$的每一步决策，我们对于任何$a$，直接搜索所有的$Q(s,a)$。取使得$Q(s,a)$最大的a。<br>这种方法也称为Q-Learning。</p>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a target="_blank" rel="noopener" href="https://SCPZ24.github.io">SCPZ24</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="http://example.com/posts/748f0bbe.html">http://example.com/posts/748f0bbe.html</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="http://example.com" target="_blank">SCPZ24-blog</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/MDP/">MDP</a><a class="post-meta__tags" href="/tags/%E6%9C%80%E4%BC%98Q%E7%AD%96%E7%95%A5/">最优Q策略</a><a class="post-meta__tags" href="/tags/RL/">RL</a></div><div class="post-share"><div class="social-share" data-image="/img/OldWu.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/posts/11aff4a7.html" title="马尔可夫决策过程"><div class="cover" style="background: var(--default-bg-color)"></div><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="fas fa-history fa-fw"></i> 2025-05-08</div><div class="info-item-2">马尔可夫决策过程</div></div><div class="info-2"><div class="info-item-1">State Machine状态机的组成：  $S$：所有可能状态$s$的集合 $s_0$：起始状态 所有状态满足马尔科夫性，即下一状态和奖励仅与当前状态和动作有关，与历史无关。   $A$：所有可能输入$a$（操作）的集合 对于一个操作，在某个状态下给出，它有可能在各个概率下转化为各个其他状态 则有转化矩阵 Matrix_a = \begin{bmatrix} p_{s_1\rightarrow s_1} & p_{s_1\rightarrow s_2} & p_{s_1\rightarrow s_3} & \dots & p_{s_1\rightarrow s_n} \\ p_{s_2\rightarrow s_1} & p_{s_2\rightarrow s_2} & p_{s_2\rightarrow s_3} & \dots & p_{s_2\rightarrow s_n} \\ \vdots & \vdots & \vdots & \ddots & \vdots \\ p_{s_n\rightarrow s_1} & p_{s_n\rightarrow s_2} & p...</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/OldWu.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">SCPZ24</div><div class="author-info-description">软件工程大二学生，努力成为极客中。</div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">12</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">18</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">1</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/SCPZ24"><i class="fab fa-github"></i><span>Github</span></a></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">我的机器学习导论(MIT6.036)和自然语言处理(CS224n)笔记现已上传。欢迎参考交流。</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-1"><a class="toc-link" href="#Definition"><span class="toc-number">1.</span> <span class="toc-text">Definition</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Exploration-amp-Exploitation"><span class="toc-number">2.</span> <span class="toc-text">Exploration &amp; Exploitation</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Searching-for-Optimal-Policy-By-T-and-R"><span class="toc-number">3.</span> <span class="toc-text">Searching for Optimal Policy By $T$ and $R$</span></a></li><li class="toc-item toc-level-1"><a class="toc-link" href="#Searching-for-Optimal-Policy-By-Q"><span class="toc-number">4.</span> <span class="toc-text">Searching for Optimal Policy By $Q$</span></a><ol class="toc-child"><li class="toc-item toc-level-2"><a class="toc-link" href="#Expected-Values"><span class="toc-number">4.1.</span> <span class="toc-text">Expected Values</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Estimate-Q"><span class="toc-number">4.2.</span> <span class="toc-text">Estimate Q</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/becca920.html" title="决策树与随机森林">决策树与随机森林</a><time datetime="2025-12-17T04:15:00.000Z" title="发表于 2025-12-17 12:15:00">2025-12-17</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/35f08535.html" title="聚类算法">聚类算法</a><time datetime="2025-05-17T07:04:00.000Z" title="发表于 2025-05-17 15:04:00">2025-05-17</time></div></div><div class="aside-list-item no-cover"><div class="content"><a class="title" href="/posts/39a9d4ee.html" title="循环神经网络-导论">循环神经网络-导论</a><time datetime="2025-05-10T17:26:00.000Z" title="发表于 2025-05-11 01:26:00">2025-05-11</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By SCPZ24</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.4</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="translateLink" type="button" title="简繁转换">繁</button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.4"></script><script src="/js/main.js?v=5.5.4"></script><script src="/js/tw_cn.js?v=5.5.4"></script><script src="https://cdn.jsdelivr.net/npm/@fancyapps/ui@6.1.9/dist/fancybox/fancybox.umd.min.js"></script><div class="js-pjax"><script>(() => {
+  const loadMathjax = () => {
+    if (!window.MathJax) {
+      window.MathJax = {
+        loader: {
+          load: [
+            // Four font extension packages (optional)
+            //- '[tex]/bbm',
+            //- '[tex]/bboldx',
+            //- '[tex]/dsfont',
+            '[tex]/mhchem'
+          ],
+          paths: {
+            'mathjax-newcm': '[mathjax]/../@mathjax/mathjax-newcm-font',
+
+            //- // Four font extension packages (optional)
+            //- 'mathjax-bbm-extension': '[mathjax]/../@mathjax/mathjax-bbm-font-extension',
+            //- 'mathjax-bboldx-extension': '[mathjax]/../@mathjax/mathjax-bboldx-font-extension',
+            //- 'mathjax-dsfont-extension': '[mathjax]/../@mathjax/mathjax-dsfont-font-extension',
+            'mathjax-mhchem-extension': '[mathjax]/../@mathjax/mathjax-mhchem-font-extension'
+          }
+        },
+        output: {
+          font: 'mathjax-newcm',
+        },
+        tex: {
+          inlineMath: [['$', '$'], ['\\(', '\\)']],
+          tags: 'ams',
+          packages: {
+            '[+]': [
+              'mhchem'
+            ]
+          }
+        },
+        chtml: {
+          scale: 1.1
+        },
+        options: {
+          enableMenu: true,
+          menuOptions: {
+            settings: {
+              enrich: false  // Turn off Braille and voice narration text automatic generation
+            }
+          },
+          renderActions: {
+            findScript: [10, doc => {
+              for (const node of document.querySelectorAll('script[type^="math/tex"]')) {
+                const display = !!node.type.match(/; *mode=display/)
+                const math = new doc.options.MathItem(node.textContent, doc.inputJax[0], display)
+                const text = document.createTextNode('')
+                node.parentNode.replaceChild(text, node)
+                math.start = {node: text, delim: '', n: 0}
+                math.end = {node: text, delim: '', n: 0}
+                doc.math.push(math)
+              }
+            }, '']
+          }
+        }
+      }
+
+      const script = document.createElement('script')
+      script.src = 'https://cdn.jsdelivr.net/npm/mathjax@4.1.0/tex-mml-chtml.min.js'
+      script.id = 'MathJax-script'
+      script.async = true
+      document.head.appendChild(script)
+    } else {
+      MathJax.startup.document.state(0)
+      MathJax.texReset()
+      MathJax.typesetPromise()
+    }
+  }
+
+  btf.addGlobalFn('encrypt', loadMathjax, 'mathjax')
+  window.pjax ? loadMathjax() : window.addEventListener('load', loadMathjax)
+})()</script></div><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script><div id="local-search"><div class="search-dialog"><nav class="search-nav"><span class="search-dialog-title">搜索</span><i class="fas fa-spinner fa-pulse" id="loading-status" hidden="hidden"></i><button class="search-close-button"><i class="fas fa-times"></i></button></nav><div class="text-center" id="loading-database"><i class="fas fa-spinner fa-pulse"></i><span>  数据加载中</span></div><div class="local-search-input"><input placeholder="搜索文章" type="text"/></div><hr/><div id="local-search-results"></div><div class="ais-Pagination" id="local-search-pagination" style="display:none;"><ul class="ais-Pagination-list"></ul></div><div id="local-search-stats"></div></div><div id="search-mask"></div><script src="/js/search/local-search.js?v=5.5.4"></script></div></div></body></html>

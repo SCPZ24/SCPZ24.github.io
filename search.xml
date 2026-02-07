@@ -4,13 +4,340 @@
   
     
     <entry>
-      <title>Hello World</title>
-      <link href="/posts/4a17b156.html"/>
-      <url>/posts/4a17b156.html</url>
+      <title>决策树与随机森林</title>
+      <link href="/posts/becca920.html"/>
+      <url>/posts/becca920.html</url>
       
-        <content type="html"><![CDATA[<p>Welcome to <a href="https://hexo.io/">Hexo</a>! This is your very first post. Check <a href="https://hexo.io/docs/">documentation</a> for more info. If you get any problems when using Hexo, you can find the answer in <a href="https://hexo.io/docs/troubleshooting.html">troubleshooting</a> or you can ask me on <a href="https://github.com/hexojs/hexo/issues">GitHub</a>.</p><h2 id="Quick-Start"><a href="#Quick-Start" class="headerlink" title="Quick Start"></a>Quick Start</h2><h3 id="Create-a-new-post"><a href="#Create-a-new-post" class="headerlink" title="Create a new post"></a>Create a new post</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo new <span class="string">&quot;My New Post&quot;</span></span><br></pre></td></tr></table></figure><p>More info: <a href="https://hexo.io/docs/writing.html">Writing</a></p><h3 id="Run-server"><a href="#Run-server" class="headerlink" title="Run server"></a>Run server</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo server</span><br></pre></td></tr></table></figure><p>More info: <a href="https://hexo.io/docs/server.html">Server</a></p><h3 id="Generate-static-files"><a href="#Generate-static-files" class="headerlink" title="Generate static files"></a>Generate static files</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo generate</span><br></pre></td></tr></table></figure><p>More info: <a href="https://hexo.io/docs/generating.html">Generating</a></p><h3 id="Deploy-to-remote-sites"><a href="#Deploy-to-remote-sites" class="headerlink" title="Deploy to remote sites"></a>Deploy to remote sites</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">$ hexo deploy</span><br></pre></td></tr></table></figure><p>More info: <a href="https://hexo.io/docs/one-command-deployment.html">Deployment</a></p>]]></content>
+        <content type="html"><![CDATA[<h1 id="Decision-Tree"><a href="#Decision-Tree" class="headerlink" title="Decision Tree"></a>Decision Tree</h1><p>决策树可以理解为一种多维的更复杂的Step Function。<br>其变化是瞬变而非平滑。<br>作为一种可解释的预测模型，决策树也分为分类树和回归树<br>树的节点：</p><ul><li>Internal Node<ul><li>组成：Features和Values</li><li>Features是一个d维向量，维度的下标为j</li><li>Split Values拆分值，一个数</li><li>左子节点是条件维度小于Split Value，右子节点是条件维度大于等于Split Value。</li></ul></li><li>Leaf Node<ul><li>在给定触发条件下返回的预测（输出）值<br><img src="/img/MIT6036/决策树结构示意举例.png" alt=""></li></ul></li></ul><h1 id="Growing-a-Decision-Tree"><a href="#Growing-a-Decision-Tree" class="headerlink" title="Growing a Decision Tree"></a>Growing a Decision Tree</h1><p>给出一个数据集$I$，给出分类机制来把$I$中的Label分类，并形成一个决策树。<br>基于树的结构，我们要调用递归函数。<br>BuildTree($I$，$k$)<br>如果$|I|&lt;k$</p><ol><li>记$\widehat{y}=average_{i\in I}y^{(i)}$</li><li>返回一个叶子节点 Leaf(label = $\widehat{y}$) 这里的label是基于树的预测值<br>否则<br>对于Feature的每一个维度 $j$ 和所有点中的一个在这个维度下的坐标$s$：<br>设子集<script type="math/tex; mode=display">I^+_{j,s} = \{ i\in I \mid x^{(i)}_j \geq s \}</script>设子集<script type="math/tex; mode=display">I^-_{j,s} = \{ i\in I \mid x^{(i)}_j < s \}</script>设平均值<script type="math/tex; mode=display">\widehat{y}^+_{j,s} = \text{average}_{i\in I^+_{j,s}} y^{(i)}</script>设平均值<script type="math/tex; mode=display">\widehat{y}^-_{j,s} = \text{average}_{i\in I^-_{j,s}} y^{(i)}</script>设误差（损失）<script type="math/tex; mode=display">E_{j,s} = \sum_{i\in I^+_{j,s}} (y^{(i)} - \widehat{y}^+_{j,s})^2 + \sum_{i\in I^-_{j,s}} (y^{(i)} - \widehat{y}^-_{j,s})^2</script>设<script type="math/tex; mode=display">(j^*, s^*) = \underset{j,s}{\text{argmin}} \, E_{j,s}</script>返回一个Internal节点<script type="math/tex; mode=display">Node(j^*,s^*，BuildTree(I^-_{j^*,s^*}，k)，BuildTree(I^+_{j^*,s^*}，k))</script>如果$k$太小，会出现过拟合的情况。<br>同样的，一般很可能会出现同一Internal节点下出现多个预测值一样的Leaf节点。<br>处理方法：</li></ol><ul><li>正则化损失</li><li>记$|T|$为树的Leaf节点个数，在总损失中引入这一参数<script type="math/tex; mode=display">C_\alpha(T)=\sum_{i=1}^nL(T(x^{(i)}),y^{(i)})+\alpha|T|</script></li><li>只需要很小的一个$\alpha$值，就可以推断为不值得生成这个Leaf节点。</li><li>基于新的损失来修剪树的冗余的Leaf节点。<h1 id="Ensembling"><a href="#Ensembling" class="headerlink" title="Ensembling"></a>Ensembling</h1>Ensembling是一种提高数据集利用率的方式。<br>典型的方法为Bagging，即Bootstrap Aggregating。<br>(Bootstrap)对于一个数据集$D_n$，我们遍历$b=1,2,3,\dots,B$</li></ul><ol><li>设$\widetilde{D}_n^{(b)}$是对$D_n$的n次随机采样（允许重复）取得的假数据集</li><li>基于假数据集训练模型$\widetilde{f}^{(b)}$<br>(Aggregating)返回平均的模型<script type="math/tex; mode=display">\widetilde{f}_{bag}(x)=\frac{1}{B}\sum_{b=1}^B\widetilde{f}^{(b)}(x)</script><h1 id="Random-Forest"><a href="#Random-Forest" class="headerlink" title="Random Forest"></a>Random Forest</h1>随机森林是一种特殊的Bagging，针对决策树问题。<br>对$1,2,3,4,\dots,B$，通过可重复采样生成$B$个假数据集。<br>对每一个$\widetilde{D}_n^{(b)}$：<br>递归直到遇到边界($k&gt;|I|$)</li><li>随机在$d$个维度中不重复地取$m$个维度，记为$1,2,3,\dots,m$</li><li>找到最佳的(<script type="math/tex">m^*,s^*</script>)（类似于上面的找(<script type="math/tex">j^*,s^*</script>)）</li><li>基于此创建树节点以及其子节点。<br>预测时，对于回归问题，取各个树返回值的平均数。对于分类问题，返回采样点在各个树上返回值的众数（类似于各个树在投票）</li></ol>]]></content>
       
       
+      <categories>
+          
+          <category> 机器学习导论(MIT6.036)笔记 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 决策树 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>聚类算法</title>
+      <link href="/posts/35f08535.html"/>
+      <url>/posts/35f08535.html</url>
+      
+        <content type="html"><![CDATA[<h1 id="K-means-Algorithm"><a href="#K-means-Algorithm" class="headerlink" title="K-means Algorithm"></a>K-means Algorithm</h1><p>假设需要给地图（空间）上的$n$个人分配$k$个食堂。要求所有人到答自己配到的食堂距离的平方和最小。这就是一个K-means聚类（K-means Clustering）问题。<br>一个食堂理解为一个聚类中心（Cluster Centre）。<br>空间上的一个人认为一个散点。<br>散点$i$的坐标为$x^{(i)}$，它关联的聚类中心的索引为$y^{(i)}$<br>聚类中心$j$的坐标为$\mu^{(j)}$<br>那么，可以定义$i$点到$j$中心的Squared Loss为$|x^{(i)}-\mu^{(j)}|^2$<br>我们记这个系统的总平方损失为</p><script type="math/tex; mode=display">Loss=\sum_{j=1}^k\sum_{i=1}^n1\begin{Bmatrix}y^{(i)}=j\end{Bmatrix}\cdot |x^{(i)}-\mu^{(j)}|^2</script><p>其中的变化因素为聚类中心的坐标$\mu$，以及每个点分配到的聚类中心$y$<br>我们定义K-means Objective（K-means目标）为使得这个Loss最小的$\mu,y$组合。即</p><script type="math/tex; mode=display">K\,means\,Objective=argmin_{\mu,y}\sum_{j=1}^k\sum_{i=1}^n1\begin{Bmatrix}y^{(i)}=j\end{Bmatrix}\cdot |x^{(i)}-\mu^{(j)}|^2</script><p>K-means算法的实现<br>对于给定的聚类中心个数$k$以及最大迭代轮数$\tau$</p><ol><li>先执行初始化，获得最初的$\mu,y$</li><li>然后执行$\tau$轮循环。每一轮中<ul><li>对于$n$个点，将其分配至距离最近的聚类中心。<br>  即对于<code>i in range(n)</code>，set $y^{(i)}=argmin_j|x^{(i)}-\mu^{(j)}|$</li><li>然后调整每个聚类中心，将其转移至所有分配给自身的点的几何重心上<br>  即对于<code>j in range(k)</code>，set<script type="math/tex; mode=display">\mu^{(j)}=\frac{\sum_{i=1}^n1\begin{Bmatrix}y^{(i)}=j\end{Bmatrix}\cdot x^{(i)}}{\sum_{i=1}^n1\begin{Bmatrix}y^{(i)}=j\end{Bmatrix}}</script></li><li>比对：如果上一轮迭代结束后的$y$与这一轮结束后的$y$一样，那么直接跳出循环。</li></ul></li><li>返回所得的$\mu,y$。<br>实际上，这个算法对于某些初始化的情况只能收敛到Local Optimal，不能收敛到Global Optimal。因此可以采取Restart：设置多个初始化的数据组，分别做K-means算法，取Loss最低的方式。<h1 id="Definition-of-Clustering"><a href="#Definition-of-Clustering" class="headerlink" title="Definition of Clustering"></a>Definition of Clustering</h1>上述K-means算法的数据集没有Labels。K-means算法本质上实现了一种聚类（Clustering）。<br>聚类就是依照某些依据把数据集做拆分。<br>由于其不依赖Labels，因此聚类操作是Unsupervised Machine Learning的一种。<br><img src="/img/MIT6036/与无监督机器学习有关的图.png" alt=""><h1 id="Attributes-of-K-means"><a href="#Attributes-of-K-means" class="headerlink" title="Attributes of K-means"></a>Attributes of K-means</h1>$k$的选取<br> 有些情境下，$k$是给定的<br> 有时候$k$不给定，需要自行选取<br> 一般的，$k$越大，获得的Loss越小。如果$k\geq n$，那最小的Loss=0<br> 一般计算损失的时候，可以算一个与$k$值正相关的损失项。<script type="math/tex; mode=display"> Loss=\sum_{j=1}^k\sum_{i=1}^n1\begin{Bmatrix}y^{(i)}=j\end{Bmatrix}\cdot |x^{(i)}-\mu^{(j)}|^2+cost(k)</script>K-means聚类的形态：K-means算法能完美分类等大小的圆形区域点。<br><img src="/img/MIT6036/等密度等半径聚类.png" alt=""><br><img src="/img/MIT6036/密度不一的等量聚类.png" alt=""><br><img src="/img/MIT6036/大样本区和散点.png" alt=""><br><img src="/img/MIT6036/大聚团.png" alt=""></li></ol>]]></content>
+      
+      
+      <categories>
+          
+          <category> 机器学习导论(MIT6.036)笔记 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 无监督机器学习 </tag>
+            
+            <tag> K-means </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>循环神经网络-导论</title>
+      <link href="/posts/39a9d4ee.html"/>
+      <url>/posts/39a9d4ee.html</url>
+      
+        <content type="html"><![CDATA[<h1 id="Components"><a href="#Components" class="headerlink" title="Components"></a>Components</h1><p>RNN（循环神经网络）也可以理解为一个状态机。<br>假设讨论第$t$轮，其state是一个$m \times 1$向量$s_t$。<br>输入向量$x_t$，可以认为是$1 \times 1$（Special Case），也可以认为是$c \times 1$。<br>预测向量$p_t$，为$v \times 1$，为一个链结的输出值。<br>线性操作的矩阵：</p><ul><li>外界输入向量$x_t$前面的系数矩阵$W^{sx}$，为$m \times c$</li><li>上一轮迭代向量$s_{t-1}$前面的系数矩阵$W^{ss}$，为$m \times m$</li><li>常数矩阵$W_0^{ss}$，为$m \times 1$</li><li>获取$p_t$的激活函数（第二次激活函数）前的线性变换矩阵$W^o$（$v \times m$）与$W_0^o$（$v \times 1$）<br><img src="/img/MIT6036/循环神经网络结构示意图.png" alt=""><h1 id="Operations-for-Each-Layer"><a href="#Operations-for-Each-Layer" class="headerlink" title="Operations for Each Layer"></a>Operations for Each Layer</h1>已知输入向量<script type="math/tex">x_t</script>，状态向量<script type="math/tex">s_{t-1}</script>。<br>则线性变换有<script type="math/tex; mode=display">z_t^1 = W^{sx}x_t + W^{ss}s_{t-1} + W_0^{ss}</script>转入激活函数$f_1$得$s_t$<script type="math/tex; mode=display">s_t = f_1(z_t^1)</script>这个$s_t$即为下一层的状态向量<br>做第二次线性变换<script type="math/tex; mode=display">z_t^2 = W^os_t + W_0^o</script>经过激活函数得到这一层向外界输出的预测向量<script type="math/tex; mode=display">p_t = f_2(z_t^2)</script>注意变元右上角的数字并不是指数而是上标。<br>举例：假设在做一个英文字母预测提词器，认为状态机中保存已经输入的3个英文字符为<script type="math/tex">s_{t-1}</script>，现在再从字符串中读取下一个字符<script type="math/tex">x_t</script>。我们要使得<script type="math/tex">s_t</script>中有<script type="math/tex">s_{t-1}</script>中的后两个字符以及<script type="math/tex">x_t</script>，（字符可以做One-Hot编码，但是这里假设是一位线性的方便表示）那我们可以认为<script type="math/tex">f_1</script>为<script type="math/tex">f_1(x)=x</script>，然后适当的取转换矩阵。<script type="math/tex; mode=display">s_t = \begin{bmatrix}1\\0\\0\end{bmatrix}x_t + \begin{bmatrix}0 & 0 & 0\\1 & 0 & 0\\0 & 1 & 0\end{bmatrix}s_{t-1}</script>实际情况更加复杂，但是参数训练完后差不多会是如是情形。<h1 id="Loss-and-Gradient"><a href="#Loss-and-Gradient" class="headerlink" title="Loss and Gradient"></a>Loss and Gradient</h1>RNN的训练样本应该是有时序的一串序列，比如字符串。<br>每次迭代序列的下一列或下一子串$x_t$进入神经网络。<br>我们假设训练样本有$q$个序列。每个序列有$n^{(i)}$个子单元。<br>则一个序列的损失为<script type="math/tex; mode=display">L_{seq}(p^{(i)}, y^{(i)}) = \sum_{t=1}^{n^{(i)}} L_{elt}(p_t^{(i)}, y_t^{(i)})</script>总损失为<script type="math/tex; mode=display">J(W^o, W_0^o) = \sum_{i=1}^q L_{seq}(p^{(i)}, y^{(i)})</script>对一个$L_{seq}$，其对于参数的梯度有（以$W^{sx}$为例）<script type="math/tex; mode=display">\frac{\partial L_{seq}(p^{(i)}, y^{(i)})}{\partial W^{sx}} = \sum_{t=1}^{n^{(i)}} \frac{\partial L_{elt}(p_t^{(i)}, y_t^{(i)})}{\partial W^{sx}}</script></li></ul>]]></content>
+      
+      
+      <categories>
+          
+          <category> 机器学习导论(MIT6.036)笔记 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> NN </tag>
+            
+            <tag> 梯度 </tag>
+            
+            <tag> RNN </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>强化学习</title>
+      <link href="/posts/748f0bbe.html"/>
+      <url>/posts/748f0bbe.html</url>
+      
+        <content type="html"><![CDATA[<h1 id="Definition"><a href="#Definition" class="headerlink" title="Definition"></a>Definition</h1><p>与<a href="/posts/11aff4a7.html" title="马尔可夫决策过程">马尔可夫决策过程</a>不同的是，强化学习是当智能体进入一个陌生的环境中，并不知道奖励和转换矩阵，智能体需要做出操作并依据反馈学习周围的环境。<br>即进入陌生环境后，依然有状态机$S$和操作集合$A$，但不知道所有的转移概率$T$与奖励$R$。</p><h1 id="Exploration-amp-Exploitation"><a href="#Exploration-amp-Exploitation" class="headerlink" title="Exploration &amp; Exploitation"></a>Exploration &amp; Exploitation</h1><p>智能体笼统地有两种策略：探索和利用。<br>智能体被投放入陌生环境后，假设会进行无限轮操作。其目的是获取尽可能大的Reward。<br>Exploration策略为探索环境中的信息<br>    操作为不管环境为何种情况，完全随机选择一个$a\in A$当做该轮操作。<br>Exploitation为基于获取的信息做出最优的决策<br>    操作为基于搜集到的信息和当前的$s$决策出最优的行为$a$。<br>为了获得更好的Reward，智能体需要权衡Exploration和Exploitation的操作比例。<br>我们用$\epsilon$来表示权衡的比例。<br>$\epsilon\in (0,1)$，我们认为有$1-\epsilon$的概率采取Exploitation策略，有$\epsilon$的概率采取Exploration策略。<br>实际上，每一步操作都会有信息的摄入，即$R(s,a)，s_{new}$。</p><h1 id="Searching-for-Optimal-Policy-By-T-and-R"><a href="#Searching-for-Optimal-Policy-By-T-and-R" class="headerlink" title="Searching for Optimal Policy By $T$ and $R$"></a>Searching for Optimal Policy By $T$ and $R$</h1><p>可以通过持续从环境中学习到更准确的$T$和$R$值。</p><ol><li>初始化智能体状态：$s^{(1)}=s_0$</li><li>初始化$T$：对任何的$s,a,s^{‘}$，我们有$\widehat{T}(s,a,s^{‘})=\frac{1}{|S|}，\widehat{R}(s,a)=0$</li><li>对于第$t$轮迭代：</li></ol><ul><li>基于$\epsilon$选择操作$a^{(t)}$。</li><li>执行操作$a^{(t)}$，获得更新的该情况下的收益$r^{(t)}$与下一轮得到的状态$s^{(t+1)}$。</li><li>更新：<br>$\widehat{R}(s^{(t)},a^{(t)})=r^{(t)}$<script type="math/tex; mode=display">\widehat{T}(s,a,s^{'}) = \frac{1 + \sum_{i=1}^t \mathbb{I}(s^{(i)}=s, a^{(i)}=a, s^{(i+1)}=s^{'})}{|S| + \sum_{i=1}^t \mathbb{I}(s^{(i)}=s, a^{(i)}=a)}</script>实质即假设在$s$状态下的$a$操作中，原本变为任何一个$s^{‘}$的情况都发生过1次。<br>随着迭代，如果某轮发现$s$状态下的$a$操作后产出一个$s^{‘}$，那变为$s^{‘}$的情况计数（频数）加一。<br>若干次迭代后，可以依据频数推出各个$s^{‘}$的$\widehat{T}(s,a,s^{‘})$。<br>数据量充足后，各个$s^{‘}$初始化默认发生过的1次会收敛掉。<br>依据新的$\widehat{R}$、$\widehat{T}(s,a,s^{‘})$预测新的$Q$以及更新策略$\pi$。<br>在实际操作中，$\epsilon$不一定为常数。起初，可以让$\epsilon$大一些，随着探索轮数变多，其实可以认为对环境系统的认知已经收敛至真实情况，这时可以让$\epsilon$变小。</li></ul><h1 id="Searching-for-Optimal-Policy-By-Q"><a href="#Searching-for-Optimal-Policy-By-Q" class="headerlink" title="Searching for Optimal Policy By $Q$"></a>Searching for Optimal Policy By $Q$</h1><h2 id="Expected-Values"><a href="#Expected-Values" class="headerlink" title="Expected Values"></a>Expected Values</h2><p>首先讨论一下各种期望值。<br>经典期望值</p><script type="math/tex; mode=display">\widetilde{E}^{(t)}=\frac{1}{t}\sum_{i=1}^tx^{(i)}</script><p>运行时期望值：每一轮产生一个期望值，新输入值之后基于迭代轮数、旧期望值产生新期望值。<br>已知$\widetilde{E}^{(0)}=0，\alpha^{(t)}=\frac{1}{t}$，则有</p><script type="math/tex; mode=display">\widetilde{E}^{(t)}=(1-\alpha^{(t)})\widetilde{E}^{(t-1)}+\alpha^{(t)}x^{(t)}</script><p>变化版运行时均值：任何$\alpha^{(t)}$都为一个常数$\alpha$。</p><script type="math/tex; mode=display">\widetilde{E}^{(t)}=(1-\alpha)\widetilde{E}^{(t-1)}+\alpha x^{(t)}</script><p>可由递推得通项公式：$\widetilde{E}^{(t)}=\sum_{i=1}^t(1-\alpha)^{t-i}\alpha x^{(t)}$<br>运行时均值其实对后输入的值权重更大。</p><h2 id="Estimate-Q"><a href="#Estimate-Q" class="headerlink" title="Estimate Q"></a>Estimate Q</h2><p>已有Q的迭代公式</p><script type="math/tex; mode=display">Q_{new}=R(s,a)+\gamma\sum_{s^{'}\in S}T(s,a,s^{'})max_{a^{'}}Q_{old}(s^{'},a^{'})</script><p>化成概率×值加和的形式为</p><script type="math/tex; mode=display">Q_{new}=\sum_{s^{'}\in S}T(s,a,s^{'})(R(s,a)+\gamma max_{a^{'}}Q_{old}(s^{'},a^{'}))</script><p>这就是一个均值的形成方式。<br>基于上述的变化版运行时均值，可以把这个公式近似成用于迭代更新$Q(s,a)$的方法(其中箭头表示取代被指向的值)</p><script type="math/tex; mode=display">Q(s,a)\leftarrow (1-\alpha)Q(s,a)+\alpha(R(s,a)+\gamma max_{a^{'}}Q_{old}(s^{'},a^{'}))</script><p>公式中保留<script type="math/tex">Q_{old}</script>作用不大，直接用当前轮的<script type="math/tex">Q</script>替换<script type="math/tex">Q_{old}</script>；<script type="math/tex">R(s,a)</script>其实就是这一轮读取到的Reward，记为<script type="math/tex">r</script>。则有简化版迭代公式</p><script type="math/tex; mode=display">Q(s,a)\leftarrow (1-\alpha)Q(s,a)+\alpha(r+\gamma max_{a^{'}}Q(s^{'},a^{'}))</script><p>可以用这种方法替换掉上一种学习方式中对$T,R$的迭代。<br>当需要采取Exploitation策略时：对于给定$s$的每一步决策，我们对于任何$a$，直接搜索所有的$Q(s,a)$。取使得$Q(s,a)$最大的a。<br>这种方法也称为Q-Learning。</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 机器学习导论(MIT6.036)笔记 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> MDP </tag>
+            
+            <tag> 最优Q策略 </tag>
+            
+            <tag> RL </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>马尔可夫决策过程</title>
+      <link href="/posts/11aff4a7.html"/>
+      <url>/posts/11aff4a7.html</url>
+      
+        <content type="html"><![CDATA[<h1 id="State-Machine"><a href="#State-Machine" class="headerlink" title="State Machine"></a>State Machine</h1><p>状态机的组成：</p><ul><li>$S$：所有可能状态$s$的集合<ul><li>$s_0$：起始状态</li><li>所有状态满足马尔科夫性，即下一状态和奖励仅与当前状态和动作有关，与历史无关。</li></ul></li><li>$A$：所有可能输入$a$（操作）的集合<ul><li>对于一个操作，在某个状态下给出，它有可能在各个概率下转化为各个其他状态</li><li>则有转化矩阵<script type="math/tex; mode=display">Matrix_a = \begin{bmatrix}p_{s_1\rightarrow s_1} & p_{s_1\rightarrow s_2} & p_{s_1\rightarrow s_3} & \dots & p_{s_1\rightarrow s_n} \\p_{s_2\rightarrow s_1} & p_{s_2\rightarrow s_2} & p_{s_2\rightarrow s_3} & \dots & p_{s_2\rightarrow s_n} \\\vdots & \vdots & \vdots & \ddots & \vdots \\p_{s_n\rightarrow s_1} & p_{s_n\rightarrow s_2} & p_{s_n\rightarrow s_3} & \dots & p_{s_n\rightarrow s_n}\end{bmatrix}</script></li></ul></li><li>$f:S × A \rightarrow S$：函数，输入一个起始状态以及一个输入操作，映射从一种状态转化为另一种状态。</li><li>$T$：Transition Model。给定原状态和操作和后续状态，返回转变为该后续状态的概率。<ul><li><script type="math/tex; mode=display">P(s_t | s_{t-1}, a_{t-1}) = T(s_{t-1}, a_{t-1}, s_t)</script></li></ul></li><li>$R$：奖励函数，指某状态下执行操作会有多少受益。$S × A \rightarrow \mathbb{R}$。<ul><li>$R(s,a)$为该轮收益</li></ul></li></ul><h1 id="Policy"><a href="#Policy" class="headerlink" title="Policy"></a>Policy</h1><p>策略$\pi$。输入一个状态，输出一个操作。$\pi : S \rightarrow A$。<br>期限(Horizon)$h$：总共可以进行操作的轮数（一轮操作获得一次收益）<br>总受益$V$。输入一个状态，给出对应策略。<br>$V_\pi^h(s)$表示在剩余期限为h轮，策略集为$\pi$，初始状态为$s$的状况下的总收益。<br>则有递推公式</p><script type="math/tex; mode=display">V_\pi^h(s) = R(s,\pi(s)) + \sum_{s^{'}\in S} T(s,\pi(s),s^{'}) \cdot V_\pi^{h-1}(s^{'})</script><p>上述的$\pi$为non_stationary的。因为其只和$s$有关。<br>实际上，策略还应该与剩余轮数$h$有关，记为$\pi_h(s)$。</p><h1 id="Seeking-Best-Policy"><a href="#Seeking-Best-Policy" class="headerlink" title="Seeking Best Policy"></a>Seeking Best Policy</h1><h2 id="Finite-Horizon"><a href="#Finite-Horizon" class="headerlink" title="Finite Horizon"></a>Finite Horizon</h2><p>$Q^h(s,a)$：在当前状态为$s$，还剩$h$轮时。我们这一轮采取操作$a$，那么假设接下来$h-1$轮我们都能采取了最佳操作，我们说这样操作的总收益为$Q^h(s,a)$。<br>有了$Q$的概念，我们可以找到一个optimal policy：$\pi_h^*(s)=argmax_a Q^h(s,a)$。即所有$a$中，使得$Q^h(s,a)$最大的那个$a$。<br>则有最大收益的递推公式</p><script type="math/tex; mode=display">Q^h(s,a) = R(s,a) + \sum_{s^{'}} T(s,a,s^{'}) \max_{a^{'}\in A} Q^{h-1}(s^{'},a^{'})</script><h2 id="Infinite-Horizon"><a href="#Infinite-Horizon" class="headerlink" title="Infinite Horizon"></a>Infinite Horizon</h2><p>当$h\rightarrow +\infty$，我们认为可以操作并收益无限轮。<br>这时，时间成本应该被计入：越晚获取的收益，相对于第一轮获取的收益就越不值钱。(Horizon非无限的时候其实也可以引入$\gamma$，只不过其影响一般不大)<br>我们引入一个Discount Factor $\gamma \in (0,1)$ 。表示物品价值的折损率。<br>从第一轮开始，经过$t$轮后，其价值相对于第一轮收益的折损表示为$\gamma^t$。<br>以钱为标的，用$\gamma^{-1}$表示每轮货币通货膨胀的比率。比如一袋米，第1年为1元，第2年就为$\gamma^{-1}$元。第$t+1$年为$\gamma^{-t}$元。<br>假设我每一轮弄到1袋米时间，则总收益为</p><script type="math/tex; mode=display">V = 1 + \gamma + \gamma^2 + \gamma^3 + \dots = \frac{1}{1-\gamma}</script><p>从单调性来看，$\gamma$越小，价值缩水的越快，总收益越小，则$V$越小。<br>我们记初始状态为$s$，策略集为$\pi:s\rightarrow a$，则无穷期限的总收益$V_\pi(s)$为</p><script type="math/tex; mode=display">V_\pi(s) = R(s,\pi(s)) + \gamma \sum_{s^{'}\in S} T(s,\pi(s),s^{'}) V_\pi(s^{'})</script><p>往方程里分别代入$S$集合中的所有$s$，这个方程可以写出由$|S|$个线性方程组成的线性方程组。<br>记$n=|S|,S={s_1,s_2,s_3,\dots,s_n}$，<br>则每一个可以整理为</p><script type="math/tex; mode=display">V_\pi(s_i) - \gamma \sum_{j=1}^n T(s_i,\pi(s_i),s_j) V(s_j) = R(s_i,\pi(s_i))</script><p>矩阵表示为</p><script type="math/tex; mode=display">(E - \gamma P)V = R</script><p>其中：</p><ul><li>$E$为$n$阶单位矩阵。</li><li>$P$为转移概率矩阵，$P_{ij}=T(s_i,\pi(s_i),s_j)$。</li><li>$V$为价值函数向量，为待求的未知数。</li><li>$R$为即时奖励向量。</li></ul><p>$\gamma$小于1时，可保证矩阵可逆，则可解出唯一的解向量$V$。</p><p>对于最优策略：假设$s$状态$a$操作之后，做出的每一步策略都是最优策略得到的总收益为$Q(s,a)$，则有</p><script type="math/tex; mode=display">Q(s,a) = R(s,a) + \gamma \sum_{s^{'}\in S} T(s,a,s^{'}) \max_{a^{'}\in A} Q(s^{'},a^{'})</script><p>则认为最优策略为</p><script type="math/tex; mode=display">\pi_{Q^*}(s) = argmax_a Q^*(s,a)</script><p>求取最优策略的方法之一：Policy Iteration<br>记第$k$轮策略集为<script type="math/tex">\pi_k</script>，价值函数<script type="math/tex">V_{\pi_k}</script>，则有线性方程组</p><script type="math/tex; mode=display">(E - \gamma P_{\pi_k}) V_{\pi_k} = R_{\pi_k}</script><p>接下来有了确知的$V_{\pi_k}$，基于此改进策略：</p><ul><li>对每个状态$s$，选择使得接下来的总收益值最大的那个$a$作为$\pi_{k+1}(s)$。即<script type="math/tex; mode=display">\pi_{k+1}(s) = argmax_a \left[ R(s,a) + \gamma \sum_{s^{'}} T(s,a,s^{'}) V_{\pi_k}(s^{'}) \right]</script>直到我们发现某一轮后有$\pi_{k+1}=\pi_k$，说明收敛结束，得到最佳策略$\pi^*$。</li></ul>]]></content>
+      
+      
+      <categories>
+          
+          <category> 机器学习导论(MIT6.036)笔记 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> MDP </tag>
+            
+            <tag> 最优Q策略 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>卷积神经网络-导论</title>
+      <link href="/posts/570edd9c.html"/>
+      <url>/posts/570edd9c.html</url>
+      
+        <content type="html"><![CDATA[<h1 id="Convolution"><a href="#Convolution" class="headerlink" title="Convolution"></a>Convolution</h1><h2 id="Filter"><a href="#Filter" class="headerlink" title="Filter"></a>Filter</h2><p>采用filter，对图像或一维序列取每个局部。在对应位置乘权重最后加和，然后加上偏移量形成新的图像或一维序列的操作。<br><img src="/img/MIT6036/一维卷积举例1.png" alt=""><br>如上图，把最上面的序列依次乘filter上的权重再相加形成新值，再把新值排列形成新序列。<br><img src="/img/MIT6036/一维卷积举例2.png" alt=""><br>这个过程称为Convolution（卷积）。<br>卷积后序列大小减少，比如上图中的10长度序列卷积完产出8长度序列。<br>可以采取对原数据的填充（Padding）。即在信息的边缘同时补一个值（默认补0），再卷积，即可确保产出的信息不损失大小。<br><img src="/img/MIT6036/一维卷积的Padding举例.png" alt=""><br>偏移量（Bias）：对卷积完后的值再加一个数字。<br>比如上述图没有再加数字，那结果如上图。<br>如果加了偏移量，则结果序列为1,0,1,0,1,-1,2,0,1,1。<br>二维图像（假设颜色只有0和1）也是同理，此时filter也是二维的。<br><img src="/img/MIT6036/二维卷积举例.png" alt=""><br>Filter的维度和大小（shape）是可以变的。<br>    一维中，不止可以用长度3的Filter。可以用别的长度，甚至可以跳着采样。<br>    其他维度也是同理。</p><h2 id="Dimensions"><a href="#Dimensions" class="headerlink" title="Dimensions"></a>Dimensions</h2><p>一维的数据可称为向量（Vector）<br>二维的数据可称为矩阵（Matrix）<br>三维的数据可称为张量（Tensor）</p><h2 id="Parameters"><a href="#Parameters" class="headerlink" title="Parameters"></a>Parameters</h2><p>Filter中与原图像相乘的数为权重（Weight）。</p><ul><li>$a×b$的Filter，其参数（权重）为<script type="math/tex">w_1,w_2,w_3......,w_{ab-1},w_{ab}</script><br>Filter采集完后再加的数字为偏移量（Bias）<h1 id="Activation"><a href="#Activation" class="headerlink" title="Activation"></a>Activation</h1>卷积完可以用激活函数进一步处理。<br>一般采用[[Neural Network]]中提到的ReLU函数。<br><img src="/img/MIT6036/卷积后激活举例.png" alt=""><br>这一次卷积+激活，实际上是找到了原一维序列中孤立的1。<br>对于同一张图片，不止可以采用一次Convolution+Activation的操作。<br>称一次Convolution+Activation操作为一个Channel（通道）。<br>实际上可以采取多次。<br>假设采取了n次不同的Convolution+Activation操作，则称这一层的通道数为n。<br><img src="/img/MIT6036/多通道示意图.png" alt=""><h1 id="Max-Pool"><a href="#Max-Pool" class="headerlink" title="Max Pool"></a>Max Pool</h1>Max Pooling（最大池操作）：一种特殊的Filter操作，每次返回Filter覆盖区域中最大的数值。<br>参数<br>  size（shape），即这个Filter一次覆盖的区域。<br>  stride（步长）：一次Filter结束后，跨步的距离。<br>比如Filter的size为3，步长为1，则最大池操作为<br><img src="/img/MIT6036/大小3步长1Filter举例.png" alt=""><br>当Filter的size为3，步长为3，则产出的结果矩阵会更小<br><img src="/img/MIT6036/步长3最大池操作举例.png" alt=""><h1 id="Typical-Architecture-of-CNN"><a href="#Typical-Architecture-of-CNN" class="headerlink" title="Typical Architecture of CNN"></a>Typical Architecture of CNN</h1><img src="/img/MIT6036/卷积神经网络一般架构示意图.png" alt=""><br>获得Input，经过多次卷积+线性整流产生最终图像。（Feature Learning）<br>然后扁平化后再做处理和提取获得结果。（Classification）<br>  扁平化后的数据其实可以看做一个一维向量。<br>  因此可以做前面已经有的<a href="/posts/becca920.html" title="逻辑回归">逻辑回归</a>、<a href="/posts/84aea1c5.html" title="回归模型">回归模型</a>(线性回归)，或再用下游神经网络操作。<h1 id="Backpropagation"><a href="#Backpropagation" class="headerlink" title="Backpropagation"></a>Backpropagation</h1>反向传播可以用来求神经网络中某一层中参数的梯度。<br>下面以一个仅有2层的卷积神经网络为例。<br>输入为一个$5×1$列向量$X$。<br>Filter为一个$3×1$列向量$W^{(1)}$。<br>Pad入$X_0,X_6$，则Filter后得结果为$5×1$列向量$Z^{(1)}$。<br>第一层的激活函数为ReLU，结果为$5×1$列向量$A^{(1)}$。<br>第二层直接左乘一个$5×1$列向量的转置$(W^{(2)})^T$。为$A^{(2)}=(W^{(2)})^TA^{(1)}$。结果是一个数。<br>损失函数<script type="math/tex; mode=display">L(A^{(2)},y)=(A^{(2)}-y)^2</script>$W^{(1)}$为隐藏层的参数。要求其梯度需要用链式法则。有<script type="math/tex; mode=display">\frac{\partial L}{\partial W^{(1)}}=\frac{\partial Z^{(1)}}{\partial W^{(1)}}\cdot\frac{\partial A^{(1)}}{\partial Z^{(1)}}\cdot\frac{\partial L}{\partial A^{(1)}}</script>记$a×b$矩阵为$M[a,b]$，维度为k的列向量为$V[k]$。则有向量相偏导数的结果为<script type="math/tex; mode=display">\frac{\partial V[a]}{\partial V[b]}=M[b,a]</script>则可验证上述链式法则的维数合理性<script type="math/tex; mode=display">\begin{matrix}\frac{\partial V[1]}{\partial V[3]}=\frac{\partial V[5]}{\partial V[3]}\cdot\frac{\partial V[5]}{\partial V[5]}\cdot\frac{\partial V[1]}{\partial V[5]}\\M[3,1]=M[3,5]\cdot M[5,5]\cdot M[5,1]\end{matrix}</script>完全合理。下关注其中一个。以$\frac{\partial Z^{(1)}}{\partial W^{(1)}}$为例<br>我们记$Z^{(1)}$的分量为$Z_1^{(1)},Z_2^{(1)},Z_3^{(1)},Z_4^{(1)},Z_5^{(1)}$，$W^{(1)}$的分量为$Z^{(1)}$的分量为$W_1^{(1)},W_2^{(1)},W_3^{(1)}$。<br>则有<script type="math/tex; mode=display">\frac{\partial Z^{(1)}}{\partial W^{(1)}}=\begin{bmatrix}\frac{\partial Z_1^{(1)}}{\partial W_1^{(1)}}\,\,\frac{\partial Z_2^{(1)}}{\partial W_1^{(1)}}\,\,\frac{\partial Z_3^{(1)}}{\partial W_1^{(1)}}\,\,\frac{\partial Z_4^{(1)}}{\partial W_1^{(1)}}\,\,\frac{\partial Z_5^{(1)}}{\partial W_1^{(1)}}\\\frac{\partial Z_1^{(1)}}{\partial W_2^{(1)}}\,\,\frac{\partial Z_2^{(1)}}{\partial W_2^{(1)}}\,\,\frac{\partial Z_3^{(1)}}{\partial W_2^{(1)}}\,\,\frac{\partial Z_4^{(1)}}{\partial W_2^{(1)}}\,\,\frac{\partial Z_5^{(1)}}{\partial W_2^{(1)}}\\\frac{\partial Z_1^{(1)}}{\partial W_3^{(1)}}\,\,\frac{\partial Z_2^{(1)}}{\partial W_3^{(1)}}\,\,\frac{\partial Z_3^{(1)}}{\partial W_3^{(1)}}\,\,\frac{\partial Z_4^{(1)}}{\partial W_3^{(1)}}\,\,\frac{\partial Z_5^{(1)}}{\partial W_3^{(1)}}\end{bmatrix}</script>带入有<script type="math/tex; mode=display">\frac{\partial Z^{(1)}}{\partial W^{(1)}}=\begin{bmatrix}X_0\,\,X_1\,\,X_2\,\,X_3\,\,X_4\\X_1\,\,X_2\,\,X_3\,\,X_4\,\,X_5\\X_2\,\,X_3\,\,X_4\,\,X_5\,\,X_6\end{bmatrix}</script>同理求出其他矩阵，再相乘得出梯度。</li></ul>]]></content>
+      
+      
+      <categories>
+          
+          <category> 机器学习导论(MIT6.036)笔记 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> CNN </tag>
+            
+            <tag> 反向传播 </tag>
+            
+            <tag> 维度分析 </tag>
+            
+            <tag> NN </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>神经网络-导论</title>
+      <link href="/posts/3c10a607.html"/>
+      <url>/posts/3c10a607.html</url>
+      
+        <content type="html"><![CDATA[<h1 id="Activation-Function"><a href="#Activation-Function" class="headerlink" title="Activation Function"></a>Activation Function</h1><p>激活函数一般是非线性的函数，使得神经网络能够学习复杂模式。<br>最原始的模型为Step Function，但是由于其导数处处为0，因此不适合用于模型训练。</p><script type="math/tex; mode=display">StepFunction:\Phi(x)=1\begin{Bmatrix}w^Tx+w_0>=0\end{Bmatrix}</script><h2 id="常用激活函数"><a href="#常用激活函数" class="headerlink" title="常用激活函数"></a>常用激活函数</h2><p>Sigmoid函数</p><script type="math/tex; mode=display">\sigma(x)=\frac{1}{1+e^{-x}}</script><p>优点：可把原先的0-1二元输出改为输出概率（适合二分类输出）<br>缺点：$|x|$较大时，梯度小，梯度下降慢。<br>tanh函数</p><script type="math/tex; mode=display">tanh(x)=\frac{e^x-e^{-x}}{e^x+e^{-x}}</script><p>把+1，-1的标的改为(-1,+1)区间内连续值的输出。<br>ReLU函数</p><script type="math/tex; mode=display">ReLU(x)=\begin{cases}x\,\,\,(x>0)\\0\,\,\,(x<=0)\end{cases}</script><p>Leaky ReLU</p><script type="math/tex; mode=display">LeakyReLU(x)=\begin{cases}x\,\,\,(x>0)\\\alpha x\,\,\,(x<=0)\end{cases}</script><p>其中$\alpha$通常取0.01<br>激活函数通过对数据集的处理并叠加产生新的数据集。<br><img src="/img/MIT6036/激活函数举例图.png" alt=""></p><h1 id="Layer-of-Neural-Network"><a href="#Layer-of-Neural-Network" class="headerlink" title="Layer of Neural Network"></a>Layer of Neural Network</h1><p>对于一个数据集，取其中一个向量x来讨论<br>作为第一层Input，其为一个$m^{(1)}×1$向量。<br>其输出为$A^{(1)}$，为一个$n^{(1)}×1$的向量，满足$A_i^{(1)}=f^{(1)}(w_i^{(1)T}x+w_i^{1})，其中i \in \begin{Bmatrix}1,2,3……,n^{(1)}\end{Bmatrix}$。<br>把所有的$A_i^{(1)}$纵向拼成一个大的列向量作为第一个Layer的输出。<br>接下来重新定义$f^{(i)}$：它可以是一个激活函数。我们认为其不止作用于一个数，而是作用于一个列向量。即对列向量的每一个数都做同样的动作，然后把对应的结果生成一个新的列向量。<br>则有</p><script type="math/tex; mode=display">A^{(1)}=f^{(1)}(W^{(1)T}x+W_0^{(1)})</script><p>其中，$W^{(1)}$为$m^{(1)}×n^{(1)}$矩阵，$W_0^{(1)}$为$n^{(1)}×1$向量。<br>对于下一层（第二层），有$m^{(2)}=n^{(1)}$。即上一层的输出向量为下一层的输入向量。<br>接下来进行类似的处理。</p><script type="math/tex; mode=display">A^{(2)}=f^{(2)}(W^{(2)T}A^{(1)}+W_0^{(2)})</script><p>直到最后一层。<br>整体来看</p><script type="math/tex; mode=display">A(last) = NN(x,W,W_0)</script><h1 id="Function-Graph"><a href="#Function-Graph" class="headerlink" title="Function Graph"></a>Function Graph</h1><p>以图表示神经网络<br>每一层(Layer)的结构：Inputs-Dot Product(线性变换)-Pre-activation(图中Z列)-Activation Function-Activation(图中A列)<br><img src="/img/MIT6036/神经网络的一层示意图.png" alt=""><br>中间的操作步骤视为一个神经元(neuron/unit/node)。则图中这一层有$n^{(1)}$个神经元。<br>Fully Connected<br>    对于层：一个层中的每一个输入的向量进行的操作都相同，产出对应量的输出向量。<br>    对于神经网络：一个神经网络中的所有层都是Full Connected，则这个神经网络也是Fully Connected。<br>对于一个神经网络中的层<br>    最后一层为输出结果的层，称为输出层(Output Layer)。<br>    对于输出层前面的层，称为隐藏层(Hidden Layer)。<br>每一层都可以部署回归或分离器的神经元。</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 机器学习导论(MIT6.036)笔记 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> NN </tag>
+            
+            <tag> 激活函数 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>回归模型</title>
+      <link href="/posts/84aea1c5.html"/>
+      <url>/posts/84aea1c5.html</url>
+      
+        <content type="html"><![CDATA[<h1 id="Regress（回归）"><a href="#Regress（回归）" class="headerlink" title="Regress（回归）"></a>Regress（回归）</h1><p><a href="/posts/4aa284f3.html" title="机器学习基础">机器学习基础</a>中的分类器是找到一条能大致切分平面中不同种类点的超平面的假设。返回值是+1或者-1或者+1的预测概率。<br>回归器是在d维空间中找到一个超平面（或曲面）来大致拟合数据点的走向。<br>其Label $y^{(i)}\in R$。<br>假设h为 $h：R^d\rightarrow R$。<br><img src="/img/MIT6036/一元回归器举例.png" alt=""><br>回归器的损失采取Squared Error Loss：$L(g,a)=(g-a)^2$。<br>    $g,a \in R$<br>    其中g是回归模型的预测值，a是给定数据集对应位置的实际值。</p><h1 id="Linear-Regression"><a href="#Linear-Regression" class="headerlink" title="Linear Regression"></a>Linear Regression</h1><p>给定一个超平面$(\theta,\theta_0)$，以及一个数据集。<br>对于一个位置向量$x$，这个线性回归的预测（假设）为$h(x;\theta,\theta_0)=\theta^T x+\theta_0$<br>则平方损失为</p><script type="math/tex; mode=display">J(\theta,\theta_0)=\frac{1}{n}\sum_{i=1}^nL(h(x^{(i)};\theta,\theta_0),y^{(i)})=\frac{1}{n}\sum_{i=1}^n(\theta^Tx^{(i)}+\theta_0-y^{(i)})^2</script><p>$\theta_0$很碍眼。我们用[[Perceptron]]中的扩维操作，对所有x向量扩维，并对$\theta$向量扩维。</p><script type="math/tex; mode=display">\begin{matrix}x^{(i)}_{new}\in R^{d+1},x_{new}^{(i)}=\begin{bmatrix}x_1^{(i)},x_2^{(i)},x_3^{(i)},x_4^{(i)}......,x_d^{(i)},1\end{bmatrix}\\\theta_{new}\in R^{d+1},\theta_{new}=\begin{bmatrix}\theta_1,\theta_2,\theta_3,\theta_4......,\theta_d,\theta_0\end{bmatrix}\end{matrix}</script><p>为方便后续计算，我们重新把扩维后的维数记为d维。<br>则平方损失为</p><script type="math/tex; mode=display">J(\theta)=\frac{1}{n}\sum_{i=1}^n(\theta^Tx^{(i)}-y^{(i)})^2=\frac{1}{n}\sum_{i=1}^n((x^{(i)})^T\theta-y^{(i)})^2</script><p>为方便表示，我们直接定义数据集中的位置向量集为$n×d$矩阵（同一向量以行排列）</p><script type="math/tex; mode=display">\widetilde{X}=\begin{bmatrix}x_1^{(1)}\,\,x_2^{(1)}\,\,......\,\,x_d^{(1)}\\x_1^{(2)}\,\,x_2^{(2)}\,\,......\,\,x_d^{(2)}\\......\\x_1^{(n)}\,\,x_2^{(n)}\,\,......\,\,x_d^{(n)}\end{bmatrix}</script><p>再定义数据集中的y值集为$n×1$矩阵</p><script type="math/tex; mode=display">\widetilde{Y}=\begin{bmatrix}y^{(1)}\\y^{(2)}\\...\\y^{(n)}\end{bmatrix}</script><p>由于$(x^{(i)})^T\theta-y^{(i)}$产出一个数字，则$\widetilde{X}\theta-\widetilde{Y}$产出一个$n×1$列向量。<br>则有</p><script type="math/tex; mode=display">J(\theta)=\frac{1}{n}\sum_{i=1}^n((x^{(i)})^T\theta-y^{(i)})^2=\frac{1}{n}|\widetilde{X}\theta-\widetilde{Y}|^2=\frac{1}{n}(\widetilde{X}\theta-\widetilde{Y})^T(\widetilde{X}\theta-\widetilde{Y})</script><p>由于$J(\theta)$的表达式是一个关于$\theta$的二次多项式，因此可以通过公式直接求出最低点。<br>当梯度为$\overrightarrow{0}$，可以认为这个点是这个函数的最小值点。有</p><script type="math/tex; mode=display">\nabla_{\theta}J(\theta)=\frac{2}{n}\widetilde{X}^T(\widetilde{X}\theta-\widetilde{Y})=\overrightarrow{0}</script><p>展开、移项再化简得</p><script type="math/tex; mode=display">\theta=(\widetilde{X}^T\widetilde{X})^{-1}\widetilde{X}^T\widetilde{Y}</script><p>取这个$\theta$，就获得了最优的线性回归器。</p><h1 id="Ridge-Regression"><a href="#Ridge-Regression" class="headerlink" title="Ridge Regression"></a>Ridge Regression</h1><p>有时候，这个$\theta$并非唯一。<br>    直观上的成因：数据坍缩成维度更低的形式（比如原本分布于二维平面上的点集现在只分布于或近似只分布于一条直线上。那拟合结果作为一个平面，自然有过这条线的无数种可能）。<br>    ![[拟合结果非唯一的数据集举例.png]]<br>    梯度层面的反应：梯度为0的点不止一个点而是有无数个点（比如下图右图中的情况，梯度为0的点其实分布于一条线上）。<br>    ![[拟合结果非唯一的梯度视角.png]]<br>    代数本质：数据集$\widetilde{X}$的秩小于d。<br>        此时$R(\widetilde{X}^T\widetilde{X})&lt;d$，d元线性方程组 $\widetilde{X}^T\widetilde{X}\theta=\widetilde{X}^T\widetilde{Y}$的解非唯一，为一个解集。(上述方程组就是$\theta=(\widetilde{X}^T\widetilde{X})^{-1}\widetilde{X}^T\widetilde{Y}$的前身)<br>        $|\widetilde{X}^T\widetilde{X}|$为0或几乎为0，则$\widetilde{X}^T\widetilde{X}$不存在逆矩阵。无法直接求出$\theta$。因此看到这个行列式为0或近似0，那直接认为理论上可求出的$\theta$不唯一。<br>解决方法：岭回归(Ridge Regression)。<br>核心思想是虽然理论上只能确定无限个$\theta$，我们添加一个条件：要使$|\theta|$尽可能小。<br>这时$\theta$就会受这个制约条件限制而收敛向一个尽可能使得$|\theta|$小的值。<br>类似正则化，岭回归也可以配一个与$|\theta|$有关的量。<br>扩维前的表达式为</p><script type="math/tex; mode=display">J_{ridge}(\theta,\theta_0)=\frac{1}{n}\sum_{i=1}^n((x^{(i)})^T\theta+\theta_0-y^{(i)})^2+\lambda|\theta|^2</script><p>下重点看扩维后的情形。扩维后的表达式为</p><script type="math/tex; mode=display">J_{ridge}(\theta)=\frac{1}{n}|\widetilde{X}\theta-\widetilde{Y}|^2+\lambda|\theta|^2=\frac{1}{n}(\widetilde{X}\theta-\widetilde{Y})^T(\widetilde{X}\theta-\widetilde{Y})+\lambda|\theta|^2</script><p>其中的$\lambda|\theta|^2$类似于[[Logistic Regression]]中Regularizer方法中的penalty。<br>$\lambda$是一个极小的正量，用于配权。<br>令<script type="math/tex">\nabla_{\theta}J_{ridge}(\theta)=0</script>，可以得出</p><script type="math/tex; mode=display">\theta=(\widetilde{X}^T\widetilde{X}+n\lambda E_d)^{-1}\widetilde{X}^T\widetilde{Y}</script><p>其中$E_d$是d阶单位矩阵。<br>其中，$\widetilde{X}^T\widetilde{X}+n\lambda E_d$是一个可逆（Invertible）矩阵。<br>Tips<br>    用于加入训练的数据集中的一列数据，其数量级和分布对之后的$\theta$可能产生较大影响。因此可以进行[[DataSets Preprocessing]]中的数据标准化操作。<br>    上述回归模型依然可以用<a href="/posts/e92b12e5.html" title="数据预处理">数据预处理</a>中的Featurization来处理非数字类型的数据。</p><h1 id="Gradient-Descent-for-Regression"><a href="#Gradient-Descent-for-Regression" class="headerlink" title="Gradient Descent for Regression"></a>Gradient Descent for Regression</h1><p>其实使用公式来求最优$\theta$看似很快（只有一步迭代），但是实际上这个过程中涉及到求逆矩阵。<br>求逆矩阵的时间复杂度为$O(n^3)$（其中n为矩阵阶数）。这导致这样操作很耗时。<br>实际上也可以用梯度下降来实现训练。<br>这样虽然损失了精确性，但是减少了训练所需工作量。<br>下直接给出$J(\theta,\theta_0)$（扩维前）关于$\theta$，$\theta_0$的偏导数，由此可以直接求出梯度：</p><script type="math/tex; mode=display">\begin{matrix}\nabla_\theta J_{ridge}=\frac{2}{n}\sum_{i=1}^n[((x^{(i)})^T\theta+\theta_0-y^{(i)})x^{(i)}]+2\lambda\theta\\\frac{\partial J_{ridge}}{\partial\theta_0}=\frac{2}{n}\sum_{i=1}^n((x^{(i)})^T\theta+\theta_0-y^{(i)})\end{matrix}</script><p>其中，$\theta$是由多个实数组成的向量。给出<script type="math/tex">J_{ridge}(\theta,\theta_0)</script>关于<script type="math/tex">\theta</script>的梯度也可以当偏导数用。其梯度为<script type="math/tex">\begin{bmatrix}\nabla_\theta J_{ridge}\\\frac{\partial J_{ridge}}{\partial\theta_0}\end{bmatrix}</script>。</p><h1 id="Othor-Loss-Example-for-Regression"><a href="#Othor-Loss-Example-for-Regression" class="headerlink" title="Othor Loss Example for Regression"></a>Othor Loss Example for Regression</h1><script type="math/tex; mode=display">\text{RMSE} = \sqrt{ \frac{1}{n} \sum_{i=1}^n \left( y^{(i)} - f(x^{(i)}) \right)^2 }</script>]]></content>
+      
+      
+      <categories>
+          
+          <category> 机器学习导论(MIT6.036)笔记 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 损失函数 </tag>
+            
+            <tag> 线性回归 </tag>
+            
+            <tag> 梯度 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>逻辑回归</title>
+      <link href="/posts/becca920.html"/>
+      <url>/posts/becca920.html</url>
+      
+        <content type="html"><![CDATA[<h1 id="Linear-Logistic-Classification"><a href="#Linear-Logistic-Classification" class="headerlink" title="Linear Logistic Classification"></a>Linear Logistic Classification</h1><p>有时候给出的数据集无法被Linearly Separate。<br>因此在交汇区域（有+1的数据点也有-1的数据点），我们可以认为是一个概率问题。<br>在其他区域，有产出+1的概率为1或-1的概率为1。<br>而在交汇区域，产出+1的概率为介于0到1中间的某值。<br>因此我们需要一个平滑的曲线（而非跳跃点）来描述样本-产出值的概率。<br><img src="/img/MIT6036/获得平滑概率曲线示意图.png" alt=""><br>假设$A$为样本点产出的数据为+1，则$\overline{A}$表示样本数据点的产出为-1。<br>Linear Logistic Classification可以用于描述$P(A)$的一个函数。<br>典型的用于Linear Logistic Classification的函数：</p><script type="math/tex; mode=display">\begin{matrix}Sigmoid/Logistic\,\,Function\\\sigma(z)=\frac{1}{1+e^{-z}}\end{matrix}</script><p>Sigmoid函数不一定能用于预测所有的情况。有时候需要对传入的数据做几何变换（乘系数θ，加常数θ）。因此可以表示为：</p><script type="math/tex; mode=display">g(x)=\sigma(\theta x+\theta_0)=\frac{1}{1+e^{-(\theta x+\theta_0)}}</script><p>这里只涉及了传入的数据为一维数字的情况。实际上传入的数据点x为d维向量。<br>因此可以把Sigmoid函数的变量推广到d维向量的形式：</p><script type="math/tex; mode=display">\begin{matrix}Given\,d维向量x,则有d维法向量\theta\\g(x)=\sigma(\theta^Tx+\theta_0)=\frac{1}{1+e^{-(\theta^Tx+\theta_0)}}\end{matrix}</script><p><img src="/img/MIT6036/二维数据的Sigmoid函数举例.png" alt=""></p><h1 id="Linear-Logistic-Classification与线性分离器"><a href="#Linear-Logistic-Classification与线性分离器" class="headerlink" title="Linear Logistic Classification与线性分离器"></a>Linear Logistic Classification与线性分离器</h1><p>Linear Logistic Classification可以看作是产出一个概率（预测为1的概率）。我们称这个式子为$Possibility=\sigma(\theta^Tx+\theta_0)$<br>而线性分离器的假设h产出一个确定的值，但不确保这个值对。<br>数学上的统一性：<br>    当我们令$\sigma(\theta^Tx+\theta_0)&gt;0.5$，则依据Sigmoid函数的展开式可以化简得$\theta^Tx+\theta_0&gt;0$。<br>    由此，Logistic Classification预测得概率大于0.5的条件与线性分离器预测为+1的条件相同。<br>然而，当数据并非线性可分时，Logistic Classification有更强的保障性。</p><h1 id="Negative-Log-Likelihood-Loss"><a href="#Negative-Log-Likelihood-Loss" class="headerlink" title="Negative Log Likelihood Loss"></a>Negative Log Likelihood Loss</h1><p>对于一个逻辑分类器($g(x)=\sigma(\theta^Tx+\theta_0)$)和一个给定的数据(已给出一个$x^{(i)}$向量和对应的$y^{(i)}$的值)，我们认为这个逻辑分类器预测对的概率为</p><script type="math/tex; mode=display">Probability(Data\,Point\,i)=\begin{cases}g(x^{(i)})\,\,\,(y^{(i)}=+1)\\1-g(x^{(i)})\,\,\,(y^{(i)}=-1)\end{cases}</script><p>那么给定一个逻辑分类器和一个数据集，其预测全部正确的概率为</p><script type="math/tex; mode=display">Probability(D_n)=\prod_{i=1}^nProbability(Data\,Point\,i)</script><p>这个概率其实反应了一个逻辑分类器的预测水平（产出可信预测的能力）。<br>由于这个值是很多个小于1的正数的乘积，因此会十分小。计算机的精度无法精确模拟如此小的数据。<br>因此可以对整个概率取对数。则上式子右边从一串乘积改为一串取完对数的结果的加和。<br>取对数不改变单调性，因此取完对数和也可以看作逻辑分类器预测水平的标的。<br>再取这个对数的相反数，则可以成为估计这个逻辑分离器预测中产生的损失的一种标的。（预测精确度越高，一方面可认为损失越小，另一方面这个相反数越小。因此这个相反数可以反应这个预测模型的损失）<br>我们称这组取对数再取相反数的结果为负对数似然损失（Negative Log Likelihood Loss，简称NLL损失）。<br>下给出公式（g为猜测，a为实际结果）。对一个数据点的情况：</p><script type="math/tex; mode=display">\begin{matrix}L_{NLL}(g,a)\\=-\log(Provavility(Data\,Point\,i))\\=\begin{cases}-\log g(x^{(i)})\,\,\,(y^{(i)}=+1)\\-\log (1-g(x^{(i)}))\,\,\,(y^{(i)}=-1)\end{cases}\end{matrix}</script><p>对总体数据集的情况：</p><script type="math/tex; mode=display">\begin{matrix}总体NLL损失\\=\frac{1}{n}\sum_{i=1}^nL_{NLL}(\sigma(\theta^Tx^{(i)}+\theta_0),y^{(i)})\\=-\frac{1}{n}\sum_{i=1}^n\log(Probability(Data\,Point\,i))\end{matrix}</script><p>其中$Probability(Data\,Point\,i)=\begin{cases}g(x^{(i)})\,\,\,(y^{(i)}=+1)\1-g(x^{(i)})\,\,\,(y^{(i)}=-1)\end{cases}$</p><h1 id="Gradient-Descent"><a href="#Gradient-Descent" class="headerlink" title="Gradient Descent"></a>Gradient Descent</h1><p>逻辑分类器化离散为连续，可以利用基于微分的手法进行训练。<br>一个分类器的参数有d维向量$\theta$和标量$\theta$。一共d+1个参数。<br>在进行逻辑分类器的训练时，可以把所有参数统一成一组变量$\Theta$。</p><script type="math/tex; mode=display">J_{lr}(\Theta)=J_{lr}(\theta,\theta_0)=\frac{1}{n}\sum_{i=1}^nL_{NLL}(\sigma(\theta^Tx^{(i)}+\theta_0),y^{(i)})</script><p>下定义梯度（Gradient）：<br>假设$\Theta\in R^m$，是一个m维向量。有$\Theta=\begin{bmatrix}\Theta_1,\Theta_2,\Theta_3……,\Theta_m\end{bmatrix}^T$。<br>对于关于$\Theta$的函数$f(\Theta)$，其梯度为</p><script type="math/tex; mode=display">Gradient\,\nabla_{\Theta}f=\begin{bmatrix}\frac{\partial f}{\partial\Theta_1},\frac{\partial f}{\partial\Theta_2},\frac{\partial f}{\partial\Theta_3}......,\frac{\partial f}{\partial\Theta_m}\end{bmatrix}^T</script><p>梯度下降(Gradient Descent)是基于梯度来调整参数来使得参数组获得季小损失的算法。<br>梯度下降的参数：初始参数向量$\Theta<em>{init}$，跨度$\eta$，基于数据集确定的分类器函数$f$，梯度$\nabla</em>{\Theta}f$，梯度下降的临界值正数$\epsilon$，训练最大轮数$\tau$（可选可不选）。<br>步骤<br>    Initailize $\Theta^{(0)}=\Theta<em>{init}$<br>    Initailize $t = 0$<br>    Loop<br>        更新t：$t = t + 1$<br>        更新$\Theta$：$\Theta^{(t)}=\Theta^{(t-1)}-\eta \nabla</em>{\Theta}f(\Theta^{(t-1)})$<br>    结束循环的条件（可以依据训练需求实际情况选择其中一个或数个）：<br>        (1) $|f(\Theta^{(t)})-f(\Theta^{(t-1)})|&lt;\epsilon$<br>        (2) $|\Theta^{(t)}-\Theta^{(t-1)}|&lt;\epsilon$<br>        (3) $|\nabla_{\Theta}f(\Theta^{(t)})|&lt;\epsilon$<br>        (4) $t\geq \tau$<br><img src="/img/MIT6036/二维梯度下降举例.png" alt=""><br>Gradient Descent的性质：<br>    如果<br>        $f(\Theta)$是平滑的，且是下凸(convex)的<br>        $f(\Theta)$在$\Theta$全域上至少存在一个全局最优点<br>        $\eta$充分小<br>    那么<br>        经过有限轮梯度下降后，一定会找到在$\epsilon$范围内的最优点。<br>    注意：对于梯度下降算法来说，最优点就是最小值点。</p><h1 id="Regularizer"><a href="#Regularizer" class="headerlink" title="Regularizer"></a>Regularizer</h1><p>当数据集的交汇区没有值时，依据这组数据持续梯度下降下去，会使得$\Theta$的模长越来越大。同时，交汇区的曲线越来越陡峭。这就失去了逻辑回归的意义。<br><img src="/img/MIT6036/交汇区缺乏数据导致的问题举例.png" alt=""><br>因此需要设置这种情况的限制因素。<br>使用较大的$\epsilon$算一种方法，但是容易产生其他问题。<br>可以引入Regularizer（正则化器）来解决这个问题。<br>在原来的用于梯度下降的逻辑回归函数中加入一个与$\theta$的模长有关的项。</p><script type="math/tex; mode=display">J_{lr}(\Theta)=J_{lr}(\theta,\theta_0)=\frac{1}{n}\sum_{i=1}^nL_{NLL}(\sigma(\theta^Tx^{(i)}+\theta_0),y^{(i)})+\lambda|\theta|^2</script><p>其中，$R(\theta)=\lambda|\theta|^2$表示一个Regularizer（或者一个Penalty（惩罚））。<br>当$\theta$模长过大，其平方值在算式中就变得不可忽略，进而印象到梯度下降的方向来防止之。<br>Regularizer的性质：<br>    加入函数后，函数还是可微分且下凸的。<br>    $\lambda$其实是一个用于调节权重的系数。<br>        $\lambda$过大，Regularizer更容易对式子占主导地位<br>        $\lambda$过小，前面的NLLLoss更容易对式子占主导地位<br>定义指示函数$1(condition)$指的是condition成立时返回1；否则返回0。<br>把上述的$J_{lr}(\theta,\theta_0)$函数的梯度求出来则是</p><script type="math/tex; mode=display">\begin{matrix}\frac{\partial J_{lr}}{\partial \theta}=\frac{1}{n}\sum_{i=1}^n[(\sigma(\theta^Tx^{(i)}+\theta_0)-1(y^{(i)}=1))x^{(i)}]+2\lambda\theta\\\frac{\partial J_{lr}}{\partial\theta_0}=\frac{1}{n}\sum_{i=1}^n(\sigma(\theta^Tx^{(i)}+\theta_0)-1(y^{(i)}=1))\end{matrix}</script>]]></content>
+      
+      
+      <categories>
+          
+          <category> 机器学习导论(MIT6.036)笔记 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 损失函数 </tag>
+            
+            <tag> 过拟合 </tag>
+            
+            <tag> 反向传播 </tag>
+            
+            <tag> 线性回归 </tag>
+            
+            <tag> 梯度 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>数据预处理</title>
+      <link href="/posts/e92b12e5.html"/>
+      <url>/posts/e92b12e5.html</url>
+      
+        <content type="html"><![CDATA[<h1 id="Encode-Data-in-Usable-Form-Featurization"><a href="#Encode-Data-in-Usable-Form-Featurization" class="headerlink" title="Encode Data in Usable Form(Featurization)"></a>Encode Data in Usable Form(Featurization)</h1><p>有时，数据集中的数据并不可以直接变成可以直接变成数字的形式用于分析。因此需要一些其他标的对数据进行预处理。<br>这些预处理本身就是一种映射（Mapping）。把原来的数据$x(比如区间、字符串)$映射成可以用于线性化数据训练的数据$\phi(x)$。<br>下以分析心脏病发病的情况为例阐述如何把数据预处理。<br><img src="/img/MIT6036/心脏病样本调查表.png" alt=""></p><h2 id="0-1Mapping"><a href="#0-1Mapping" class="headerlink" title="0-1Mapping"></a>0-1Mapping</h2><p>图中第一列“Has heart disease”中只有是或者否，则可以用数据1表示是，0表示否。由此参与学习模型。</p><h2 id="One-hot-Encoding"><a href="#One-hot-Encoding" class="headerlink" title="One-hot Encoding"></a>One-hot Encoding</h2><p>图中“Job”栏无法用单一数据表述两者的区别。<br>因为如果给每个职业都赋一个值：护士-1，高管-2，医生-3。依据线性运算的理念，可以认为“高管介于护士和医生之间”。但没有任何明确标的来对这些职业做排序。<br>所以我们可以采取升维，把所有职业列入一张表。<br><img src="/img/MIT6036/单一热点编码示意图.png" alt=""><br>如上图。假设一共有5个职业，则把表示职业的列扩维成5列。每个职业只在对应的维度为1。</p><h2 id="Factored-Encoding"><a href="#Factored-Encoding" class="headerlink" title="Factored Encoding"></a>Factored Encoding</h2><p>对于上图中的药物栏，如果采取One-hot Encoding，则需要用到$2^2=4$维(p,p&amp;b,b,null)。并且无法体现p与p&amp;b两组中共同用了p药物这样的关系。<br>因此可以用Factored Encoding：药物有几种，就用几维。<br><img src="/img/MIT6036/要素导向编码示意图.png" alt=""></p><h2 id="Using-a-Representative-for-a-Range"><a href="#Using-a-Representative-for-a-Range" class="headerlink" title="Using a Representative for a Range"></a>Using a Representative for a Range</h2><p>表中的年龄，照理可以用一个年龄段的中间数来表示一个区间。<br>然而实际上，对于一个表示区间的数据，有时候用区间的中间值（即为每个区间给予了默认值）其实有失偏颇。<br>因此需要用一个代表数据来表示一个区间。<br>因此，可以把表中的20s映射为2,40s映射为4，50s映射为5。</p><h2 id="Unary-Thermometer-Code"><a href="#Unary-Thermometer-Code" class="headerlink" title="Unary/Thermometer Code"></a>Unary/Thermometer Code</h2><p>有些数据之间有程度关联但是无法定义明确的线性关系（Ordinal Data）。<br>比如强烈反对-反对-中立-同意-强烈同意之间，有程度区别但是没法定义每种态度之间的心理差别是一样的（各种态度的关系是线性的）。有时候同意和强烈同意之间的差别大于中立和同意之间的差别。因此没法用一个数字表示。<br>因此可用温度计编码。<br>比如一共有5种态度，则可以扩维成5维。每种态度对应的列前面的列全为1，后面的全为0：<br><img src="/img/MIT6036/温度计编码示意图.png" alt=""></p><h1 id="Standardize-Numerical-Datas"><a href="#Standardize-Numerical-Datas" class="headerlink" title="Standardize Numerical Datas"></a>Standardize Numerical Datas</h1><p>有时数字类型的数据在数量级上区别很大，对于有些学习算法来说训练十分困难。因此需要对数字类型标准化。<br>假设数据集中某一列数据为数据类型。记为$x_d^{(1)}，x_d^{(2)}，x_d^{(3)}，x_d^{(4)}……,x_d^{(n)}$，他们的算数平均值为$\overline{x}$,标准差为σ。<br>则对一个数据，标准化后为</p><script type="math/tex; mode=display">\phi_d^{(k)}=\frac{x_d^{(k)}-\overline{x}}{σ}</script><h1 id="Processing-of-Nonlinear-Boundaries"><a href="#Processing-of-Nonlinear-Boundaries" class="headerlink" title="Processing of Nonlinear Boundaries"></a>Processing of Nonlinear Boundaries</h1><p><img src="/img/MIT6036/非线性边缘数据集举例.png" alt=""><br>有些数据集不同区域的边缘并非直线（如左下角图）。这就需要引入Taylor Polynomial（泰勒多项式）。<br>分离器的本质：对于一个d元函数$z=f(x_1,x_2……,x_d)+h_0$，<br>    若满足$z&gt;0$，则判定为y=+1<br>    若满足$z&lt;0$，则判定为y=-1<br>线性分离器的$f(x_1,x_2……,x_d)$满足对于所有变量，都是一次的。<br>其他的函数不一定时一次的，但我们知道如果如果对函数泰勒展开，则一定会形成一个多项式的形式。<br>我们取所有次数低于a的项，那这些项里包含</p><div class="table-container"><table><thead><tr><th>次数</th><th>项</th></tr></thead><tbody><tr><td>0</td><td>$h_0$</td></tr><tr><td>1</td><td>$x_1,x_2,x_3……,x_d$</td></tr><tr><td>2</td><td><script type="math/tex">x_1^2,x_2^2,x_3^2......,x_d^2,x_1x_2,x_1x_3......x_1x_d,......x_{d-1}x_d</script></td></tr><tr><td>3</td><td>所有三次项（包括一个变量的立方，两个变量一个一次一个两次，三个变量各一次）</td></tr><tr><td>……</td><td>……</td></tr><tr><td>a</td><td>同上</td></tr></tbody></table></div><p>依照上面的展开方法，把一个样本的上述的所有的项放在一个新的向量里形成一个新的样本。<br>这个样本其实维度还是d，但是向量长度比d长。因为只需确定$x_1,x_2,x_3……,x_d$共d个值，就可以确定整个向量。</p><h1 id="Detecting-Overfitting（过度拟合）"><a href="#Detecting-Overfitting（过度拟合）" class="headerlink" title="Detecting Overfitting（过度拟合）"></a>Detecting Overfitting（过度拟合）</h1><h2 id="Definition-of-Overfitting"><a href="#Definition-of-Overfitting" class="headerlink" title="Definition of Overfitting"></a>Definition of Overfitting</h2><p>对于一个数据集，有时候会出现过度拟合的状况。<br><img src="/img/MIT6036/过度拟合举例.png" alt=""><br>如图。图中的样本可以用线性分离器来拟合。<br>但是图中应该是采用了高次的拟合方法，使得把y=+1的值都极度精确的描出来了（过于依赖样本数据）。这会在实际应用中产生错误。</p><h2 id="Rough-Ways-to-Detect-Overfitting-of-a-Learning-Algorithm"><a href="#Rough-Ways-to-Detect-Overfitting-of-a-Learning-Algorithm" class="headerlink" title="Rough Ways to Detect Overfitting of a Learning Algorithm"></a>Rough Ways to Detect Overfitting of a Learning Algorithm</h2><p>对于一个已有的数据集，我们可以做一个分类：一部分纯用于训练，另一部分用于检测训练结果。</p><ul><li>一般有训练-测试用数据以3:1分开或者1:1分开。</li><li>训练用的数据多，则越接近真实情况。</li><li>测试用的数据多，则检测时的噪音更小。</li><li>可以将数据集shuffle（重新排列）来减小一些极端情况（比如训练用的数据大多都y=+1，测试用的大多都y=-1）。<h2 id="More-Precise-Way-to-Evaluate-a-Learning-Algorithm"><a href="#More-Precise-Way-to-Evaluate-a-Learning-Algorithm" class="headerlink" title="More Precise Way to Evaluate a Learning Algorithm"></a>More Precise Way to Evaluate a Learning Algorithm</h2>方法：Cross-Validate(Dn,k)</li></ul><ol><li>把数据随机平均分成k组<br>记为 <script type="math/tex">D_{n,1},D_{n,2},D_{n,3},\dots,D_{n,k}</script>。</li><li>然后进行k轮循环。在第i轮中:<br>基于 <script type="math/tex">D_n/D_{n,i}</script> 这个数据集训练出一个 <script type="math/tex">h_i</script>。其中 <script type="math/tex">D_n/D_{n,i}=\{x|x\in D_n且x\notin D_{n,i}\}</script><br>基于 <script type="math/tex">D_{n,i}</script> 这个数据集计算出这一轮的平均误差 <script type="math/tex">\varepsilon(h_i,D_{n,i})</script>。</li><li>最后返回 <script type="math/tex">Res=\frac{1}{k}\sum_{i=1}^k\varepsilon(h_i,D_{n,i})</script>。如果使用0-1Loss，那么这个返回值应该介于0和1之间。</li><li>比较有没有组的平均误差与Res有明显差别。</li></ol>]]></content>
+      
+      
+      <categories>
+          
+          <category> 机器学习导论(MIT6.036)笔记 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 数据集 </tag>
+            
+            <tag> 过拟合 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>机器学习基础</title>
+      <link href="/posts/4aa284f3.html"/>
+      <url>/posts/4aa284f3.html</url>
+      
+        <content type="html"><![CDATA[<h1 id="Data-Set-and-Hypothesis"><a href="#Data-Set-and-Hypothesis" class="headerlink" title="Data Set and Hypothesis"></a>Data Set and Hypothesis</h1><p>在机器学习中，数据可以表示为vector的形式。<br>一个d维欧几里得空间中的一个vector x为</p><script type="math/tex; mode=display">x = (x_1,x_2,x_3,......,x_d)</script><p>设一个数据集有n个向量。则表示为(右上角括号里的数不是指数，而可以理解为上标，表示数据集中第i个向量)</p><script type="math/tex; mode=display">\begin{matrix}可记数据集(Training data)为D_n\\则i \in \begin{Bmatrix}{1,2,3,......,n}\end{Bmatrix}\\x^{(i)} = (x_1^{(i)},x_2^{(i)},x_3^{(i)},......,x_d^{(i)})\end{matrix}</script><p>标记器Label：y(x)为输出端。一个vector x可以对应一个输出y。<br>当y为一个二元输出结果时，可以定义一个假设h</p><script type="math/tex; mode=display">\begin{matrix}Label\,\,\,\,y \in \begin{Bmatrix}-1,+1\end{Bmatrix}\\Define \,Hypothesis\\h:R^d\rightarrow\begin{Bmatrix}-1,+1\end{Bmatrix}\\其中R^d为定义在d维上的欧几里得空间\end{matrix}</script><p>依据一个假设h，可以定义一个假设函数：y = h(x)<br>假设集H：所有假设h形成的集合记为H。</p><h1 id="Linear-Classifier"><a href="#Linear-Classifier" class="headerlink" title="Linear Classifier"></a>Linear Classifier</h1><p><img src="/img/MIT6036/线性分离器的推导示意图.png" alt=""><br>如图，任意一个给定的vector θ，由其方向可以确定无数条垂直于θ的直线（红线）。<br>对于所有起点位于远点，终点落在某一条红线上的vector x，有</p><script type="math/tex; mode=display">\frac{\theta^T\cdot x}{|\theta|} = a</script><p>把常数统一，该式子可以化成</p><script type="math/tex; mode=display">\theta^T\cdot x + \theta_0 = 0</script><p>不难得出</p><script type="math/tex; mode=display">\begin{matrix}以\theta^T\cdot x + \theta_0=0为分界线\\\theta^T\cdot x + \theta_0 \geq  0表示\theta正方向上的空间\\\theta^T\cdot x + \theta_0 \leq  0表示\theta负方向上的空间\end{matrix}</script><p>则依据线性分类器，可以定义假设</p><script type="math/tex; mode=display">h(x,\theta,\theta_0) = \begin{cases}+1(\theta^T\cdot x + \theta_0 \geq  0)\\-1(\theta^T\cdot x + \theta_0 < 0)\end{cases}</script><p>其中，θ和θ0为参数(parameters)，表述的是假设本身的性质。而x是变量，是假设中的因子用于确定y。<br>假设集H是所有如此定义的h的集合。</p><h1 id="判断假设的好坏：Loss-Assessment"><a href="#判断假设的好坏：Loss-Assessment" class="headerlink" title="判断假设的好坏：Loss Assessment"></a>判断假设的好坏：Loss Assessment</h1><p>假设应该能够用于在新的情况下预测出正确的结论。<br>因此可以用这个能力确定判定的好坏。<br>可以用损失函数L(Loss)来记录当预测错误或偏差时，造成的损失。<br>记依据假设给出的预测值是g(Guess) ，而实际值是a(Actual)。则可以定义L(g,a)。<br>比如<br>0-1 loss</p><script type="math/tex; mode=display">L(g,a) = \begin{cases}0(a=g)\\1(a\neq g)\end{cases}</script><p>asymmetric loss（非对称损失，强调一些预测失误的情况损失极大，需要优先避免）</p><script type="math/tex; mode=display">L(g,a)=\begin{cases}1(g=1,a=-1)\\100(g=-1,a=1)\\0(else)\end{cases}</script><p>用L(g,a)检测平均误差</p><script type="math/tex; mode=display">\begin{matrix}基于n'个新的样例获得Test\,\,\,Error\\\varepsilon(h,D_{new\,n^{'}})=\frac{\sum_{i=n+1}^{n+n'}L(h(x^{(i)}),y^{(i)})}{n'}\\基于原有n个样例获得Test\,\,\,Error\\\varepsilon_n(h,D_n)=\frac{\sum_{i=1}^{n}L(h(x^{(i)}),y^{(i)})}{n}\end{matrix}</script><p>获得的平均误差更小的h认为更优。</p><h1 id="Concept-of-Learning-Algorithm"><a href="#Concept-of-Learning-Algorithm" class="headerlink" title="Concept of Learning Algorithm"></a>Concept of Learning Algorithm</h1><p><img src="/img/MIT6036/学习算法功能示意图.png" alt=""><br>一个假设可以根据数据集中的一组数据获得一个预测。<br>学习算法可以基于数据集Dn获得一个较优的假设来用于更好的预测。<br>一个简易的学习功能实现<br>    执行k次循环：<br>        随机取样θ，θ0，形成一个假设h。<br>        计算这个h的平均误差。<br>        再随机取样。直到k次循环全部结束。<br>    记录并返回所有h中，使得平均误差最小的h。</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 机器学习导论(MIT6.036)笔记 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 数据集 </tag>
+            
+            <tag> 损失函数 </tag>
+            
+            <tag> 线性分类 </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>感知器</title>
+      <link href="/posts/94d11b34.html"/>
+      <url>/posts/94d11b34.html</url>
+      
+        <content type="html"><![CDATA[<h1 id="Perceptron-Algorithm（感知器算法）"><a href="#Perceptron-Algorithm（感知器算法）" class="headerlink" title="Perceptron Algorithm（感知器算法）"></a>Perceptron Algorithm（感知器算法）</h1><p><img src="/img/MIT6036/感知器算法流程图.png" alt=""><br>初始化后，预设进行τ次调整（有些数据无法在有限次调整后完成学习）。<br>if语句后面的含义</p><script type="math/tex; mode=display">\begin{matrix}预测反应结果正确的情况\begin{cases}y^{(i)}=+1且\theta^Tx^{(i)}+\theta_0>0\\y^{(i)}=-1且\theta^Tx^{(i)}+\theta_0<0\end{cases}\\反应结果错误的情况（需要进入if之后的调整语句）\begin{cases}y^{(i)}与\theta^Tx^{(i)}+\theta_0异号(预测错误)\\x^{(i)}=\overrightarrow{0}且\theta_0=0(刚初始化完)\\\theta^Tx^{(i)}+\theta_0=0(样本点落在分界超平面上)\end{cases}\\当向量空间维度为d，超平面指的就是d-1维的面。\\一个超平面可以线性地把d维空间分成两片。\end{matrix}</script><p>更新操作的效果<br><img src="/img/MIT6036/更新操作的效果示意图.png" alt=""><br>更新后，把跟新的数据代入if后面的表达式左侧，可以发现化简完比原来多出一个恒正的量。因此更新后的假设更有可能做正确的预测。<br>但是依据原数据进行这样一次更新，必不一定能让更新后的假设预测原数据取得正确的结果。<br>如果每次更新都计算一次对于所有样本的Test Error，则一次更新后的Test Error不一定会比上次小。因此训练中还是需要记录使得Test Error最小的h，并确保感知器算法的输出结果要么是这个h，要么是循环跳出后最终的h。</p><h1 id="Linearly-Separable（线性可分性）"><a href="#Linearly-Separable（线性可分性）" class="headerlink" title="Linearly Separable（线性可分性）"></a>Linearly Separable（线性可分性）</h1><p>线性可分性是对于数据集的性质。其表述为正负的点一定可以被一个超平面完美切分（一侧的样本全为正，一侧的样本全为负，即所有样本数据可以被线性分类器正确分类）。<br>数学语言表述：</p><script type="math/tex; mode=display">\begin{matrix}If\,\,there\,\,exists\,\,\theta\,\,and\,\,\theta_0,\,\,such\,\,that\\for\,\,every\,\,point\,\,index\,\,i\in\begin{Bmatrix}1,2,3,4,5......,n\end{Bmatrix}\\we\,\,have\,\,y^{(i)}(\theta^Tx^{(i)}+\theta_0)>0\\Then\,\,we\,\,verdict\,\,DataSet\,\,D_n\,\,as\\Linearly\,\,Separable.\end{matrix}</script><h1 id="Margin-of-DataSet"><a href="#Margin-of-DataSet" class="headerlink" title="Margin of DataSet"></a>Margin of DataSet</h1><p>可以推导出空间中一点x* 与一个超平面(θ，θ0)的有向距离为（在θ指向的方向为正，在θ指向的方向的反方向为负）：</p><script type="math/tex; mode=display">distance(x^*,\theta,\theta_0)=\frac{\theta^Tx^*+\theta_0}{|\theta|}</script><p>基于有向距离的定义，下给出Margin of the Labelled Point的定义（默认为对于超平面θ，θ0）：</p><script type="math/tex; mode=display">Margin(x^{(i)})=y^{(i)}(\frac{\theta^Tx^*+\theta_0}{|\theta|})</script><p>可以认为点对超平面的Margin也是有向的。当这个点被预测正确时，这个值为正；预测错误时，这个值为负或者0。<br>基于点对超平面的Margin，下定义一个DataSet对于一个超平面的Margin（默认为对于超平面θ，θ0）：</p><script type="math/tex; mode=display">Margin(D_n)=min_{i=\begin{Bmatrix}1,2,3,4......,n\end{Bmatrix}}Margin(x^{(i)})</script><p>因此可以知道，如果一个线性分类器未能把一组数据完美分类，则这个数据集对其超平面的Margin(Dn)一定不大于0。</p><h1 id="Theorem-of-Perceptron-Performance"><a href="#Theorem-of-Perceptron-Performance" class="headerlink" title="Theorem of Perceptron Performance"></a>Theorem of Perceptron Performance</h1><p>对于满足如下条件的DataSet：</p><script type="math/tex; mode=display">Assumptions\begin{cases}Hypothesis对应的超平面经过空间的原点（超平面的\theta_0=0）\\\\存在\gamma(\gamma>0)与\theta^*，使得对有所数据点i\in\begin{Bmatrix}1,2,3,4......,n\end{Bmatrix}，满足Margin(x^{(i)})>\gamma\\即y^{(i)}(\frac{\theta^Tx^*}{|\theta|})>\gamma\\\\存在R(R>0)，使得对所有的数据点i\in\begin{Bmatrix}1,2,3,4......,n\end{Bmatrix}，满足|x^{(i)}|\leq R\end{cases}</script><p>可以得出如下结论：</p><script type="math/tex; mode=display">上述的Perceptron\,\,Algorithm可以在(\frac{R}{\gamma})^2次更新内，完成学习，产出完美的线性分离器。</script><p>实际上，不是所有数据集都能找到过原点的分类器。<br>我们可以将数据集和分类器升维来满足过原点的需求：</p><script type="math/tex; mode=display">\begin{matrix}Initial:\\x\in R^d,\theta\in R^d,\theta_0\in R\\Point\,x:\theta^Tx+\theta_0=0\\Update \,\,Dimension:\\x_{new}\in R^{d+1},x_{new}=\begin{bmatrix}x_1,x_2,x_3,x_4......,x_d,1\end{bmatrix}\\\theta_{new}\in R^{d+1},\theta_{new}=\begin{bmatrix}\theta_1,\theta_2,\theta_3,\theta_4......,\theta_d,\theta_0\end{bmatrix}\\Then\,\,we\,\,have:\\\theta_{new}^Tx_{new}=0\\注意到\theta_{new}^Tx_{new}与\theta^Tx+\theta_0值一样，则正负性一样，\\则输入同一数据点，升维后的分类器（假设）依然能给出与之前一致的返回值。\end{matrix}</script><p>因此上述结论可以推广到θ0≠0的情况。</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 机器学习导论(MIT6.036)笔记 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 损失函数 </tag>
+            
+            <tag> 线性回归 </tag>
+            
+        </tags>
       
     </entry>
     
@@ -31,9 +358,20 @@
     
     
     <entry>
-      <title></title>
-      <link href="/css/custom.css"/>
-      <url>/css/custom.css</url>
+      <title>tags</title>
+      <link href="/tags/index.html"/>
+      <url>/tags/index.html</url>
+      
+        <content type="html"><![CDATA[]]></content>
+      
+    </entry>
+    
+    
+    
+    <entry>
+      <title>文章分类</title>
+      <link href="/categories/index.html"/>
+      <url>/categories/index.html</url>
       
         <content type="html"><![CDATA[]]></content>
       
