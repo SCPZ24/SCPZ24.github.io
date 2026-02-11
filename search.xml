@@ -4,6 +4,35 @@
   
     
     <entry>
+      <title>小型ToC产品从灵感到落地</title>
+      <link href="/posts/4358da15.html"/>
+      <url>/posts/4358da15.html</url>
+      
+        <content type="html"><![CDATA[<p>REF: <a href="https://www.bilibili.com/video/BV1W3LUzPE8V/?share_source=copy_web&amp;vd_source=edfea719cc03a2c9723ff8032a393ed2">如何用2小时靠AI做出月入至少$3M美金的APP—by文复利WenFree</a><br>本博客作为这个视频的听课笔记。</p><h1 id="关于产品idea"><a href="#关于产品idea" class="headerlink" title="关于产品idea"></a>关于产品idea</h1><h2 id="解决情绪需求"><a href="#解决情绪需求" class="headerlink" title="解决情绪需求"></a>解决情绪需求</h2><p>人类的负面情绪比如渴望，不爽，恐惧。</p><h3 id="如何区别真需求"><a href="#如何区别真需求" class="headerlink" title="如何区别真需求"></a>如何区别真需求</h3><p>解决需求需要有可验证性，这体现在</p><ol><li>有这种负面情绪的人很多。</li><li>这个产品能解决大多数人的这样的情绪。<br>市面上很多产品会暴死，本质上是因为解决的需求是开发者自己的需求，不是大多数用户的需求。“伪需求“只是想象出来的，看似漂亮的没什么用的功能。<br>真正的需求可用<code>高情绪-高频率-明确的受众-有消费意愿</code>的SOP验证。<br>消费意愿的验证： <a href="www.paywallscreens.com">PayWallScreen</a> 可研究一个需求（对应的现有产品）的下载量和收入，用数据验证需求。</li></ol><h2 id="产品足够简单"><a href="#产品足够简单" class="headerlink" title="产品足够简单"></a>产品足够简单</h2><p>可用一句话清晰表述这个产品是干什么的。</p><h1 id="最小可行性产品-MVP"><a href="#最小可行性产品-MVP" class="headerlink" title="最小可行性产品(MVP)"></a>最小可行性产品(MVP)</h1><p>基于一开始的最简单的产品功能，设计一个初始用例。<br>MVP只需要实现这个初始用例。<br>后续的设计，只需要在这个MVP的基础上加功能即可。</p><h1 id="需求文档-PRD"><a href="#需求文档-PRD" class="headerlink" title="需求文档(PRD)"></a>需求文档(PRD)</h1><font color="#ff0000">PRD不仅用来设计软件，更是可以用来当作AI Coding的prompt。</font><h2 id="用户流程"><a href="#用户流程" class="headerlink" title="用户流程"></a>用户流程</h2><p> 描述用户为了完成某个目标或任务，与产品进行交互的完整路径。它通常以步骤或图表的形式展现，从用户进入产品开始，到最终完成任务（或离开）结束。</p><h2 id="核心功能"><a href="#核心功能" class="headerlink" title="核心功能"></a>核心功能</h2><p>MVP就是由此而来。<br> 定义产品<strong>必须拥有</strong>的最基本、最重要的功能特性。</p><h2 id="关键交互"><a href="#关键交互" class="headerlink" title="关键交互"></a>关键交互</h2><p>详细说明用户与产品界面之间最重要的操作点。例如，点击某个按钮后发生什么，表单如何提交，数据如何呈现等。<br><strong>目的</strong>：定义用户体验的具体细节，确保交互设计直观、高效，并能正确引导用户完成流程。</p><h2 id="业务模型"><a href="#业务模型" class="headerlink" title="业务模型"></a>业务模型</h2><p>讲明产品通过何种模式收取资金或创造价值。<br>比如付费购买，内部会员充值。</p><h2 id="界面设计"><a href="#界面设计" class="headerlink" title="界面设计"></a>界面设计</h2><h3 id="Figma-Prototype"><a href="#Figma-Prototype" class="headerlink" title="Figma Prototype"></a>Figma Prototype</h3><p>可以去 <a href="https://www.figma.com/design/">Figma</a> 快速画出原形界面。</p><h3 id="找同类竞品抄"><a href="#找同类竞品抄" class="headerlink" title="找同类竞品抄"></a>找同类竞品抄</h3><h3 id="原型实现"><a href="#原型实现" class="headerlink" title="原型实现"></a>原型实现</h3><p>可以用Flutter用一套前端适配所有平台的App前端。</p>]]></content>
+      
+      
+      <categories>
+          
+          <category> 落地能力 </category>
+          
+      </categories>
+      
+      
+        <tags>
+            
+            <tag> 需求分析 </tag>
+            
+            <tag> App开发 </tag>
+            
+            <tag> VibeCoding </tag>
+            
+        </tags>
+      
+    </entry>
+    
+    
+    
+    <entry>
       <title>卷积神经网络和树递归神经网络</title>
       <link href="/posts/4a42f569.html"/>
       <url>/posts/4a42f569.html</url>
@@ -357,9 +386,9 @@
       
         <tags>
             
-            <tag> 梯度 </tag>
-            
             <tag> 损失函数 </tag>
+            
+            <tag> 梯度 </tag>
             
             <tag> 词嵌入 </tag>
             
@@ -583,9 +612,9 @@
       
         <tags>
             
-            <tag> 梯度 </tag>
-            
             <tag> 损失函数 </tag>
+            
+            <tag> 梯度 </tag>
             
             <tag> 线性回归 </tag>
             
@@ -612,15 +641,15 @@
       
         <tags>
             
+            <tag> 损失函数 </tag>
+            
             <tag> 梯度 </tag>
             
             <tag> 反向传播 </tag>
             
-            <tag> 损失函数 </tag>
+            <tag> 过拟合 </tag>
             
             <tag> 线性回归 </tag>
-            
-            <tag> 过拟合 </tag>
             
         </tags>
       
@@ -726,9 +755,9 @@
     
     
     <entry>
-      <title>tags</title>
-      <link href="/tags/index.html"/>
-      <url>/tags/index.html</url>
+      <title>link</title>
+      <link href="/link/index.html"/>
+      <url>/link/index.html</url>
       
         <content type="html"><![CDATA[]]></content>
       
@@ -737,9 +766,9 @@
     
     
     <entry>
-      <title>link</title>
-      <link href="/link/index.html"/>
-      <url>/link/index.html</url>
+      <title>tags</title>
+      <link href="/tags/index.html"/>
+      <url>/tags/index.html</url>
       
         <content type="html"><![CDATA[]]></content>
       
