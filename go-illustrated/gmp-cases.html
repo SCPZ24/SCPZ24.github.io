@@ -1,0 +1,3296 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>GMP调度案例 · 图解Go语言 · SCPZ24</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Noto+Serif+SC:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ========================================================================
+       SCPZ24 — Editorial Book & Minimalist Hand-Drawn Notebook Theme
+       Matches homepage palette (#faf9f5 warm paper / #141413 dark ink)
+       ======================================================================== */
+    :root {
+      --bg: #faf9f5;
+      --bg-paper: #fdfcf8;
+      --bg-hover: #f2f0e8;
+      --bg-code: #f3f1ea;
+      --ink: #1c1b19;
+      --ink-secondary: #57534e;
+      --ink-muted: #8c867c;
+      --rule: rgba(28, 27, 25, 0.13);
+      --rule-strong: rgba(28, 27, 25, 0.30);
+      --accent: #24576b;
+      --accent-soft: rgba(36, 87, 107, 0.08);
+      --paper-dot: rgba(28, 27, 25, 0.11);
+
+      /* GMP Semantic Palette (Strict Visual Spec) */
+      --c-m: #3b82f6;
+      --c-m-dark: #1d4ed8;
+      --c-m-parked: #93c5fd;
+      --c-p: #f59e0b;
+      --c-p-dark: #b45309;
+      --c-g: #10b981;
+      --c-g-dark: #047857;
+      --c-g0: #0f766e;
+      --c-runnext: #d97706;
+      --c-grq: #8b5cf6;
+      --c-midle: #64748b;
+      --c-sysmon: #ef4444;
+      --c-netpoll: #6366f1;
+
+      /* Warm Paper SVG Surfaces */
+      --svg-slot-bg: #fdfcf8;
+      --svg-slot-border: rgba(28, 27, 25, 0.24);
+      --svg-queue-bg: #f3f0e6;
+      --svg-text: #1c1b19;
+      --svg-text-sub: #57534e;
+      --svg-text-muted: #8c867c;
+      --svg-pill-bg: #fdfcf8;
+      --svg-kernel-bg: rgba(59, 130, 246, 0.045);
+      --svg-user-bg: rgba(16, 185, 129, 0.04);
+
+      --font-serif: "Noto Serif SC", "Newsreader", "Source Han Serif SC", "Songti SC", "STSong", Georgia, serif;
+      --font-latin-serif: "Newsreader", "Noto Serif SC", Georgia, serif;
+      --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+      --anim-dur: 0.65s;
+    }
+
+    [data-theme="dark"] {
+      --bg: #141413;
+      --bg-paper: #191816;
+      --bg-hover: #1f1e1b;
+      --bg-code: #1d1c19;
+      --ink: #eae7df;
+      --ink-secondary: #a8a39a;
+      --ink-muted: #746f67;
+      --rule: rgba(234, 231, 223, 0.13);
+      --rule-strong: rgba(234, 231, 223, 0.28);
+      --accent: #82b8cc;
+      --accent-soft: rgba(130, 184, 204, 0.12);
+      --paper-dot: rgba(234, 231, 223, 0.10);
+
+      --svg-slot-bg: #141413;
+      --svg-slot-border: rgba(234, 231, 223, 0.24);
+      --svg-queue-bg: #201f1c;
+      --svg-text: #eae7df;
+      --svg-text-sub: #b8b3aa;
+      --svg-text-muted: #7c776f;
+      --svg-pill-bg: #1e1d1a;
+      --svg-kernel-bg: rgba(59, 130, 246, 0.09);
+      --svg-user-bg: rgba(16, 185, 129, 0.07);
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    html {
+      font-size: 16px;
+      scroll-behavior: smooth;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      line-height: 1.8;
+      font-feature-settings: "kern" 1, "liga" 1;
+      transition: background-color 0.25s var(--ease), color 0.25s var(--ease);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    ::selection {
+      background-color: color-mix(in srgb, var(--accent) 18%, transparent);
+      color: var(--ink);
+    }
+
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.85em;
+      background-color: var(--bg-hover);
+      color: var(--ink);
+      padding: 0.1em 0.38em;
+      border-radius: 3px;
+      border: 1px solid var(--rule);
+    }
+
+    /* ========================================================================
+       Page Frame, Masthead & Breadcrumb (Identical to Homepage)
+       ======================================================================== */
+    .page-wrap {
+      width: 100%;
+      max-width: 1220px;
+      margin: 0 auto;
+      padding: 0 28px;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .masthead {
+      padding: 36px 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .masthead-brand {
+      font-family: var(--font-latin-serif);
+      font-size: 0.92rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink-secondary);
+      transition: color 0.2s var(--ease);
+    }
+
+    .masthead-brand:hover {
+      color: var(--ink);
+    }
+
+    .theme-btn {
+      appearance: none;
+      border: none;
+      background: transparent;
+      padding: 4px 2px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--font-sans);
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      color: var(--ink-muted);
+      transition: color 0.2s var(--ease);
+    }
+
+    .theme-btn:hover {
+      color: var(--ink);
+    }
+
+    .theme-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      border: 1px solid currentColor;
+      background-color: transparent;
+      transition: background-color 0.2s var(--ease);
+    }
+
+    [data-theme="dark"] .theme-dot {
+      background-color: currentColor;
+    }
+
+    .crumb {
+      margin: 6px 0 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.82rem;
+      letter-spacing: 0.04em;
+      color: var(--ink-muted);
+    }
+
+    .crumb a {
+      color: var(--ink-secondary);
+      border-bottom: 1px solid transparent;
+      transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
+    }
+
+    .crumb a:hover {
+      color: var(--ink);
+      border-bottom-color: var(--rule-strong);
+    }
+
+    .crumb .slash {
+      opacity: 0.45;
+      user-select: none;
+    }
+
+    /* Editorial Hero Title Block */
+    .title-block {
+      padding: clamp(28px, 5vh, 52px) 0 30px;
+    }
+
+    .kicker {
+      margin: 0 0 12px;
+      font-family: var(--font-latin-serif);
+      font-style: italic;
+      font-size: 0.92rem;
+      letter-spacing: 0.06em;
+      color: var(--ink-muted);
+    }
+
+    .title-block h1 {
+      margin: 0;
+      font-family: var(--font-serif);
+      font-weight: 500;
+      font-size: clamp(1.75rem, 3.2vw, 2.35rem);
+      line-height: 1.38;
+      letter-spacing: 0.04em;
+      color: var(--ink);
+    }
+
+    .hero-lead {
+      margin: 16px 0 0;
+      font-size: 0.95rem;
+      color: var(--ink-secondary);
+      max-width: 72ch;
+      line-height: 1.85;
+    }
+
+    .book-rule {
+      height: 4px;
+      border-top: 1px solid var(--rule-strong);
+      border-bottom: 1px solid var(--rule);
+      margin: 0;
+    }
+
+    /* ========================================================================
+       Two-Column Editorial Layout: Left Sticky Margin TOC + Notebook Stream
+       ======================================================================== */
+    .doc-layout {
+      padding: 36px 0 72px;
+      display: grid;
+      grid-template-columns: 212px minmax(0, 1fr);
+      gap: 44px;
+      align-items: start;
+      flex: 1;
+    }
+
+    .toc-sidebar {
+      position: sticky;
+      top: 36px;
+      padding-top: 4px;
+      max-height: calc(100vh - 64px);
+      overflow-y: auto;
+    }
+
+    .toc-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin: 0 0 14px;
+      font-size: 0.75rem;
+      font-weight: 400;
+      letter-spacing: 0.14em;
+      color: var(--ink-muted);
+    }
+
+    .toc-heading .en {
+      font-family: var(--font-latin-serif);
+      font-style: italic;
+      letter-spacing: 0.06em;
+    }
+
+    .toc-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      border-left: 1px solid var(--rule);
+    }
+
+    .toc-link {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding: 6px 0 6px 14px;
+      margin-left: -1px;
+      border-left: 1.5px solid transparent;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      color: var(--ink-muted);
+      transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
+    }
+
+    .toc-link:hover {
+      color: var(--ink);
+    }
+
+    .toc-link.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      font-weight: 500;
+    }
+
+    .toc-num {
+      font-family: var(--font-latin-serif);
+      font-style: italic;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.82rem;
+      opacity: 0.7;
+      flex-shrink: 0;
+    }
+
+    .content-col {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 48px;
+    }
+
+    /* ========================================================================
+       Global Legend Section — Clean Sketch-Notebook Sheet
+       ======================================================================== */
+    .legend-section {
+      scroll-margin-top: 32px;
+    }
+
+    .section-caption {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--rule);
+      flex-wrap: wrap;
+    }
+
+    .section-caption h2 {
+      margin: 0;
+      font-family: var(--font-serif);
+      font-weight: 500;
+      font-size: 1.18rem;
+      letter-spacing: 0.04em;
+      color: var(--ink);
+    }
+
+    .section-caption .en {
+      font-family: var(--font-latin-serif);
+      font-style: italic;
+      font-size: 0.84rem;
+      color: var(--ink-muted);
+    }
+
+    .legend-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(245px, 1fr));
+      gap: 10px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 11px;
+      border-radius: 4px;
+      background: var(--bg-paper);
+      border: 1px dashed var(--rule-strong);
+      transition: background-color 0.2s var(--ease);
+    }
+
+    .legend-item:hover {
+      background: var(--bg-hover);
+    }
+
+    .legend-icon {
+      width: 60px;
+      height: 48px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .legend-text {
+      min-width: 0;
+    }
+
+    .legend-name {
+      font-family: var(--font-serif);
+      font-size: 0.86rem;
+      font-weight: 500;
+      color: var(--ink);
+      line-height: 1.35;
+    }
+
+    .legend-desc {
+      font-size: 0.74rem;
+      color: var(--ink-muted);
+      line-height: 1.4;
+      margin-top: 2px;
+    }
+
+    /* ========================================================================
+       Scenario Section — Minimalist Hand-Drawn Figure Plate
+       ======================================================================== */
+    .scene-card {
+      scroll-margin-top: 28px;
+      padding-top: 6px;
+    }
+
+    .scene-header {
+      margin-bottom: 16px;
+    }
+
+    .scene-meta-row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 6px;
+    }
+
+    .scene-num {
+      font-family: var(--font-latin-serif);
+      font-style: italic;
+      font-size: 0.96rem;
+      color: var(--ink-muted);
+      flex-shrink: 0;
+    }
+
+    .scene-header h2 {
+      margin: 0;
+      font-family: var(--font-serif);
+      font-weight: 500;
+      font-size: 1.3rem;
+      line-height: 1.4;
+      letter-spacing: 0.03em;
+      color: var(--ink);
+    }
+
+    .scene-takeaway {
+      margin: 8px 0 0;
+      padding: 2px 0 2px 14px;
+      border-left: 2px solid var(--rule-strong);
+      font-size: 0.9rem;
+      color: var(--ink-secondary);
+      line-height: 1.7;
+    }
+
+    .takeaway-label {
+      font-family: var(--font-serif);
+      font-weight: 600;
+      color: var(--ink);
+      margin-right: 6px;
+    }
+
+    /* Hand-Drawn Sketch Notebook Frame */
+    .sketch-frame {
+      border: 1.5px solid var(--rule-strong);
+      border-radius: 6px;
+      background: var(--bg-paper);
+      overflow: hidden;
+    }
+
+    .scene-stage {
+      padding: 18px 18px 14px;
+      background-color: var(--bg-paper);
+      background-image: radial-gradient(var(--paper-dot) 1px, transparent 1px);
+      background-size: 20px 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border-bottom: 1px dashed var(--rule-strong);
+    }
+
+    .scene-svg {
+      width: 100%;
+      max-width: 880px;
+      height: auto;
+      display: block;
+      user-select: none;
+      overflow: visible;
+    }
+
+    /* Animated SVG Entities */
+    .gmp-node {
+      transition: transform var(--anim-dur) var(--ease), opacity 0.4s ease;
+    }
+
+    .gmp-fade {
+      transition: opacity 0.4s ease;
+    }
+
+    .spin-ring {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: gmp-spin 3.4s linear infinite;
+    }
+
+    @keyframes gmp-spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+
+    .pulse-glow {
+      animation: gmp-pulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes gmp-pulse {
+      0%, 100% { opacity: 0.28; }
+      50% { opacity: 0.85; }
+    }
+
+    .dash-flow {
+      animation: gmp-dash 1.2s linear infinite;
+    }
+
+    @keyframes gmp-dash {
+      from { stroke-dashoffset: 24; }
+      to   { stroke-dashoffset: 0; }
+    }
+
+    /* Quiet Minimalist Controls Bar */
+    .scene-controls {
+      padding: 10px 18px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--rule);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .ctrl-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ctrl-btn {
+      appearance: none;
+      border: 1px solid var(--rule-strong);
+      background: var(--bg-paper);
+      color: var(--ink-secondary);
+      height: 31px;
+      padding: 0 11px;
+      border-radius: 4px;
+      font-family: var(--font-sans);
+      font-size: 0.8rem;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: border-color 0.2s var(--ease), color 0.2s var(--ease), background-color 0.2s var(--ease);
+    }
+
+    .ctrl-btn:hover:not(:disabled) {
+      border-color: var(--ink);
+      color: var(--ink);
+      background: var(--bg-hover);
+    }
+
+    .ctrl-btn:disabled {
+      opacity: 0.36;
+      cursor: not-allowed;
+    }
+
+    .ctrl-btn.primary {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: var(--bg);
+    }
+
+    .ctrl-btn.primary:hover:not(:disabled) {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+
+    [data-theme="dark"] .ctrl-btn.primary:hover:not(:disabled) {
+      color: #141413;
+    }
+
+    .ctrl-btn svg {
+      width: 12px;
+      height: 12px;
+      fill: currentColor;
+    }
+
+    .speed-group {
+      display: inline-flex;
+      border: 1px solid var(--rule-strong);
+      border-radius: 4px;
+      overflow: hidden;
+      background: var(--bg-paper);
+    }
+
+    .speed-btn {
+      appearance: none;
+      border: none;
+      border-right: 1px solid var(--rule);
+      background: transparent;
+      color: var(--ink-muted);
+      height: 29px;
+      padding: 0 9px;
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      cursor: pointer;
+      transition: background-color 0.15s, color 0.15s;
+    }
+
+    .speed-btn:last-child {
+      border-right: none;
+    }
+
+    .speed-btn:hover {
+      color: var(--ink);
+    }
+
+    .speed-btn.active {
+      background: var(--bg-hover);
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .progress-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      min-width: 175px;
+      max-width: 280px;
+    }
+
+    .step-segments {
+      flex: 1;
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+
+    .step-seg {
+      flex: 1;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--rule-strong);
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.15s;
+    }
+
+    .step-seg:hover {
+      transform: scaleY(1.6);
+    }
+
+    .step-seg.done {
+      background: color-mix(in srgb, var(--accent) 55%, var(--rule));
+    }
+
+    .step-seg.current {
+      background: var(--accent);
+      height: 5px;
+    }
+
+    .step-counter {
+      font-family: var(--font-latin-serif);
+      font-style: italic;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.84rem;
+      color: var(--ink-secondary);
+      white-space: nowrap;
+      min-width: 68px;
+      text-align: right;
+    }
+
+    /* Editorial Footnote / Synced Explanation Strip */
+    .scene-explain {
+      padding: 16px 20px 18px;
+      background: var(--bg-code);
+      border-left: 2.5px solid var(--accent);
+      min-height: 86px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+      transition: background-color 0.25s var(--ease);
+    }
+
+    .explain-head {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-family: var(--font-serif);
+      font-size: 0.94rem;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    .explain-step-tag {
+      font-family: var(--font-latin-serif);
+      font-style: italic;
+      font-size: 0.84rem;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .explain-body {
+      margin: 0;
+      font-size: 0.88rem;
+      color: var(--ink-secondary);
+      line-height: 1.8;
+    }
+
+    /* Chapter Footer Navigation & Colophon (Matches Site) */
+    .chapter-nav {
+      margin-top: 12px;
+      padding-top: 24px;
+      border-top: 1px solid var(--rule);
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .chapter-nav-link {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: color 0.2s var(--ease);
+    }
+
+    .chapter-nav-link.next {
+      text-align: right;
+      margin-left: auto;
+    }
+
+    .chapter-nav-label {
+      font-size: 0.76rem;
+      letter-spacing: 0.08em;
+      color: var(--ink-muted);
+    }
+
+    .chapter-nav-title {
+      font-family: var(--font-serif);
+      font-size: 1rem;
+      letter-spacing: 0.04em;
+      color: var(--ink-secondary);
+      transition: color 0.2s var(--ease);
+    }
+
+    .chapter-nav-link:hover .chapter-nav-title {
+      color: var(--accent);
+    }
+
+    .colophon {
+      padding: 28px 0 40px;
+      border-top: 1px solid var(--rule);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      letter-spacing: 0.06em;
+      color: var(--ink-muted);
+    }
+
+    .colophon-latin {
+      font-family: var(--font-latin-serif);
+      font-style: italic;
+    }
+
+    /* ========================================================================
+       Responsive Breakpoints
+       ======================================================================== */
+    @media (max-width: 1120px) {
+      .doc-layout {
+        grid-template-columns: 190px minmax(0, 1fr);
+        gap: 28px;
+      }
+    }
+
+    @media (max-width: 920px) {
+      .doc-layout {
+        grid-template-columns: 1fr;
+        gap: 28px;
+      }
+
+      .toc-sidebar {
+        position: static;
+        max-height: none;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--rule);
+      }
+
+      .toc-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 14px;
+        border-left: none;
+      }
+
+      .toc-link {
+        padding: 4px 0;
+        margin-left: 0;
+        border-left: none;
+        border-bottom: 1.5px solid transparent;
+      }
+
+      .toc-link.active {
+        border-left-color: transparent;
+        border-bottom-color: var(--accent);
+      }
+    }
+
+    @media (max-width: 560px) {
+      .page-wrap {
+        padding: 0 18px;
+      }
+
+      .masthead {
+        padding: 24px 0 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <!-- Minimal Editorial Masthead (Matches Homepage) -->
+    <header class="masthead">
+      <a href="../index.html" class="masthead-brand">SCPZ24</a>
+      <button id="theme-toggle" class="theme-btn" type="button" aria-label="切换明暗主题">
+        <span class="theme-dot" aria-hidden="true"></span>
+        <span id="theme-label">深色</span>
+      </button>
+    </header>
+
+    <!-- Breadcrumb -->
+    <nav class="crumb" aria-label="页面路径">
+      <a href="../index.html">主页</a>
+      <span class="slash">/</span>
+      <a href="./index.html">图解Go语言</a>
+      <span class="slash">/</span>
+      <span>GMP调度案例</span>
+    </nav>
+
+    <!-- Editorial Title Block -->
+    <section class="title-block">
+      <p class="kicker">图解Go语言 · 01 · Interactive Sketch Notes</p>
+      <h1>GMP调度案例：可视化理解 Go 调度器底层机制</h1>
+      <p class="hero-lead">
+        Go 语言的并发调度精髓藏在用户态的 <strong>G-M-P</strong> 模型之中。下面以手绘笔记式的 <strong>7 个独立分步交互图解</strong>，逐帧演示协程创建、<code>runnext</code> 局部性插队、<code>G0</code> 系统栈切换、环形数组溢出、Work Stealing、系统调用 Hand-off 与 <code>Netpoller (epoll)</code> 非阻塞网络 I/O。
+      </p>
+    </section>
+
+    <div class="book-rule" aria-hidden="true"></div>
+
+    <!-- Main Two-Column Reading Layout: Sticky Left TOC + Content -->
+    <div class="doc-layout">
+      <aside class="toc-sidebar" aria-label="正文目录">
+        <div class="toc-heading">
+          <span>目录</span>
+          <span class="en">Contents</span>
+        </div>
+        <ul class="toc-list" id="toc-list">
+          <li><a class="toc-link active" href="#legend"><span class="toc-num">00</span><span>图例说明</span></a></li>
+          <li><a class="toc-link" href="#scene-1"><span class="toc-num">01</span><span>创建 G、runnext 与 wakep</span></a></li>
+          <li><a class="toc-link" href="#scene-2"><span class="toc-num">02</span><span>协程切换与 G0 调度中枢</span></a></li>
+          <li><a class="toc-link" href="#scene-3"><span class="toc-num">03</span><span>本地队列溢出与环形指针</span></a></li>
+          <li><a class="toc-link" href="#scene-4"><span class="toc-num">04</span><span>自旋、全局捞取与窃取</span></a></li>
+          <li><a class="toc-link" href="#scene-5"><span class="toc-num">05</span><span>快速系统调用与 oldp</span></a></li>
+          <li><a class="toc-link" href="#scene-6"><span class="toc-num">06</span><span>慢速阻塞与 sysmon 交接</span></a></li>
+          <li><a class="toc-link" href="#scene-7"><span class="toc-num">07</span><span>高并发网络 I/O (epoll)</span></a></li>
+        </ul>
+      </aside>
+
+      <main class="content-col">
+        <!-- Global Legend Card -->
+        <section class="legend-section" id="legend">
+          <div class="section-caption">
+            <h2>图例说明</h2>
+            <span class="en">Visual Grammar · Legend</span>
+          </div>
+          <div class="legend-grid" id="legend-grid"></div>
+        </section>
+
+        <!-- 7 Interactive Scenarios Container -->
+        <div id="scenes-root" style="display:flex; flex-direction:column; gap:52px;"></div>
+
+        <!-- Chapter Navigation -->
+        <nav class="chapter-nav" aria-label="篇目导航">
+          <a href="./index.html" class="chapter-nav-link prev">
+            <span class="chapter-nav-label">返回目录</span>
+            <span class="chapter-nav-title">&larr; 图解Go语言</span>
+          </a>
+          <a href="./go-stw.html" class="chapter-nav-link next">
+            <span class="chapter-nav-label">下一篇</span>
+            <span class="chapter-nav-title">Go STW解析 &rarr;</span>
+          </a>
+        </nav>
+      </main>
+    </div>
+
+    <!-- Colophon Footer (Matches Homepage) -->
+    <footer class="colophon">
+      <span>SCPZ24.github.io</span>
+      <span class="colophon-latin">Go Illustrated · 01</span>
+    </footer>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+
+    /* ========================================================================
+       1. Theme Management (Synced with scpz24-theme across the whole site)
+       ======================================================================== */
+    const THEME_KEY = "scpz24-theme";
+    const rootEl = document.documentElement;
+
+    function applyTheme(theme) {
+      rootEl.setAttribute("data-theme", theme);
+      const label = document.getElementById("theme-label");
+      if (label) label.textContent = theme === "dark" ? "浅色" : "深色";
+    }
+
+    (function initTheme() {
+      const saved = localStorage.getItem(THEME_KEY);
+      applyTheme(saved === "dark" ? "dark" : "light");
+      const btn = document.getElementById("theme-toggle");
+      if (btn) {
+        btn.addEventListener("click", () => {
+          const next = rootEl.getAttribute("data-theme") === "dark" ? "light" : "dark";
+          localStorage.setItem(THEME_KEY, next);
+          applyTheme(next);
+        });
+      }
+    })();
+
+    /* ========================================================================
+       2. SVG Hand-Drawn Primitives & Precision Geometry Helpers
+       ======================================================================== */
+    const SVG_NS = "http://www.w3.org/2000/svg";
+
+    function el(tag, attrs = {}, parent = null) {
+      const node = document.createElementNS(SVG_NS, tag);
+      for (const [k, v] of Object.entries(attrs)) {
+        if (v !== undefined && v !== null) node.setAttribute(k, String(v));
+      }
+      if (parent) parent.appendChild(node);
+      return node;
+    }
+
+    function setPos(node, x, y, opacity = 1) {
+      node.style.transform = `translate(${x}px, ${y}px)`;
+      node.style.opacity = String(opacity);
+    }
+
+    /** CJK-aware text width estimator so SVG pill backgrounds always fit crisply */
+    function measureTextWidth(text, fontSize = 10) {
+      let w = 0;
+      for (const ch of String(text || "")) {
+        w += ch.charCodeAt(0) > 127 ? fontSize * 1.05 : fontSize * 0.64;
+      }
+      return w;
+    }
+
+    /**
+     * Exact boundary intersection helpers so arrows align cleanly with geometry edges
+     */
+    const Geom = {
+      circleEdge(cx, cy, r, tx, ty, pad = 2) {
+        const dx = tx - cx, dy = ty - cy;
+        const d = Math.hypot(dx, dy) || 1;
+        return { x: cx + (dx / d) * (r + pad), y: cy + (dy / d) * (r + pad) };
+      },
+      rectEdge(cx, cy, w, h, tx, ty, pad = 2) {
+        const dx = tx - cx, dy = ty - cy;
+        if (dx === 0 && dy === 0) return { x: cx, y: cy };
+        const hw = w / 2 + pad, hh = h / 2 + pad;
+        const s = Math.max(Math.abs(dx) / hw, Math.abs(dy) / hh) || 1;
+        return { x: cx + dx / s, y: cy + dy / s };
+      },
+      triEdge(cx, cy, tx, ty, pad = 3) {
+        const verts = [
+          { x: cx, y: cy - 26 - pad },
+          { x: cx + 26 + pad, y: cy + 20 + pad * 0.6 },
+          { x: cx - 26 - pad, y: cy + 20 + pad * 0.6 }
+        ];
+        const dx = tx - cx, dy = ty - cy;
+        let bestT = Infinity;
+        for (let i = 0; i < 3; i++) {
+          const a = verts[i], b = verts[(i + 1) % 3];
+          const ex = b.x - a.x, ey = b.y - a.y;
+          const denom = dx * ey - dy * ex;
+          if (Math.abs(denom) < 1e-6) continue;
+          const t = ((a.x - cx) * ey - (a.y - cy) * ex) / denom;
+          const u = ((a.x - cx) * dy - (a.y - cy) * dx) / denom;
+          if (t > 0 && u >= -1e-4 && u <= 1 + 1e-4 && t < bestT) bestT = t;
+        }
+        if (!isFinite(bestT)) return { x: cx, y: cy };
+        return { x: cx + dx * bestT, y: cy + dy * bestT };
+      },
+      hexEdge(cx, cy, r, tx, ty, pad = 3) {
+        return Geom.circleEdge(cx, cy, r * 0.94, tx, ty, pad);
+      },
+      diamondEdge(cx, cy, rx, ry, tx, ty, pad = 3) {
+        const dx = tx - cx, dy = ty - cy;
+        const denom = Math.abs(dx) / (rx + pad) + Math.abs(dy) / (ry + pad) || 1;
+        return { x: cx + dx / denom, y: cy + dy / denom };
+      },
+      connect(a, b, padA = 3, padB = 5) {
+        const edge = (item, ox, oy, pad) => {
+          switch (item.type) {
+            case "circle":  return Geom.circleEdge(item.x, item.y, item.r || 20, ox, oy, pad);
+            case "g0":      return Geom.circleEdge(item.x, item.y, 26, ox, oy, pad);
+            case "rect":    return Geom.rectEdge(item.x, item.y, item.w || 84, item.h || 52, ox, oy, pad);
+            case "tri":     return Geom.triEdge(item.x, item.y, ox, oy, pad);
+            case "hex":     return Geom.hexEdge(item.x, item.y, item.r || 30, ox, oy, pad);
+            case "diamond": return Geom.diamondEdge(item.x, item.y, item.rx || 82, item.ry || 54, ox, oy, pad);
+            default:        return { x: item.x, y: item.y };
+          }
+        };
+        const p1 = edge(a, b.x, b.y, padA);
+        const p2 = edge(b, a.x, a.y, padB);
+        return { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
+      }
+    };
+
+    /**
+     * Per-SVG <defs>: subtle hand-drawn ink wobble filter + sketchy arrow markers
+     */
+    function addSvgDefs(svg, prefix) {
+      const defs = el("defs", {}, svg);
+
+      // Gentle hand-drawn pen wobble applied to shapes/lines (never to text!)
+      const flt = el("filter", {
+        id: `${prefix}-sketch`,
+        x: "-8%", y: "-8%", width: "116%", height: "116%"
+      }, defs);
+      el("feTurbulence", {
+        type: "fractalNoise",
+        baseFrequency: "0.032",
+        numOctaves: "2",
+        seed: "7",
+        result: "noise"
+      }, flt);
+      el("feDisplacementMap", {
+        in: "SourceGraphic",
+        in2: "noise",
+        scale: "1.55",
+        xChannelSelector: "R",
+        yChannelSelector: "G"
+      }, flt);
+
+      const colors = {
+        slate: "#57534e",
+        blue: "#3b82f6",
+        amber: "#d97706",
+        green: "#10b981",
+        teal: "#0f766e",
+        purple: "#8b5cf6",
+        red: "#ef4444",
+        indigo: "#6366f1",
+        muted: "#8c867c"
+      };
+      for (const [name, color] of Object.entries(colors)) {
+        const marker = el("marker", {
+          id: `${prefix}-arr-${name}`,
+          viewBox: "0 0 10 10",
+          refX: "8.2",
+          refY: "5",
+          markerWidth: "6.5",
+          markerHeight: "6.5",
+          orient: "auto-start-reverse"
+        }, defs);
+        // Open hand-drawn chevron arrowhead
+        el("path", {
+          d: "M 1.5 1.8 L 8.5 5 L 1.5 8.2",
+          fill: "none",
+          stroke: color,
+          "stroke-width": "1.7",
+          "stroke-linecap": "round",
+          "stroke-linejoin": "round"
+        }, marker);
+      }
+
+      return {
+        marker: (name) => `url(#${prefix}-arr-${name})`,
+        sketch: `url(#${prefix}-sketch)`
+      };
+    }
+
+    /**
+     * Factory functions for the 10 standardized GMP visual primitives (Hand-Drawn Minimalist Style)
+     */
+    const Primitives = {
+      /** 1. M: Blue Equilateral Triangle (#3B82F6), supports normal | spinning | parked */
+      createM(parent, label, initX = 0, initY = 0, sketchUrl = "") {
+        const g = el("g", { class: "gmp-node" }, parent);
+        const spinWrap = el("g", { class: "gmp-fade", opacity: 0 }, g);
+        el("circle", {
+          cx: 0, cy: 2, r: 35,
+          fill: "rgba(59,130,246,0.06)",
+          stroke: "#3b82f6",
+          "stroke-width": 1.8,
+          "stroke-dasharray": "6 4",
+          class: "spin-ring"
+        }, spinWrap);
+
+        const spinBadge = el("g", { transform: "translate(34, -31)" }, spinWrap);
+        el("rect", {
+          x: -30, y: -9, width: 60, height: 18, rx: 4,
+          fill: "var(--svg-pill-bg)", stroke: "#3b82f6", "stroke-width": 1.2,
+          filter: sketchUrl || undefined
+        }, spinBadge);
+        const sbText = el("text", {
+          x: 0, y: 3.5, "text-anchor": "middle",
+          "font-size": 9.5, "font-weight": 700,
+          "font-family": "var(--font-mono)", fill: "#2563eb"
+        }, spinBadge);
+        sbText.textContent = "Spinning";
+
+        const poly = el("polygon", {
+          points: "0,-26 25,20 -25,20",
+          fill: "#3b82f6",
+          stroke: "#1d4ed8",
+          "stroke-width": 2,
+          "stroke-linejoin": "round",
+          filter: sketchUrl || undefined
+        }, g);
+
+        const text = el("text", {
+          x: 0, y: 10, "text-anchor": "middle",
+          "font-size": 13, "font-weight": 700,
+          "font-family": "var(--font-sans)", fill: "#ffffff"
+        }, g);
+        text.textContent = label;
+
+        setPos(g, initX, initY, 1);
+
+        return {
+          el: g,
+          setState({ x, y, mode = "normal", opacity = 1 }) {
+            const finalOpacity = mode === "parked" ? Math.min(opacity, 0.52) : opacity;
+            setPos(g, x, y, finalOpacity);
+            if (mode === "parked") {
+              poly.setAttribute("fill", "#93c5fd");
+              poly.setAttribute("stroke", "#64748b");
+              text.setAttribute("fill", "#1e3a8a");
+              spinWrap.setAttribute("opacity", "0");
+            } else if (mode === "spinning") {
+              poly.setAttribute("fill", "#3b82f6");
+              poly.setAttribute("stroke", "#1d4ed8");
+              text.setAttribute("fill", "#ffffff");
+              spinWrap.setAttribute("opacity", "1");
+            } else {
+              poly.setAttribute("fill", "#3b82f6");
+              poly.setAttribute("stroke", "#1d4ed8");
+              text.setAttribute("fill", "#ffffff");
+              spinWrap.setAttribute("opacity", "0");
+            }
+          }
+        };
+      },
+
+      /** 2. P: Yellow Rounded Rect (#F59E0B) with status enum pill below */
+      createP(parent, label, initX = 0, initY = 0, initStatus = "_Prunning", sketchUrl = "") {
+        const g = el("g", { class: "gmp-node" }, parent);
+        const glow = el("rect", {
+          x: -47, y: -31, width: 94, height: 62, rx: 12,
+          fill: "none", stroke: "#f59e0b", "stroke-width": 2.4,
+          "stroke-dasharray": "5 3", opacity: 0, class: "pulse-glow",
+          filter: sketchUrl || undefined
+        }, g);
+        const rect = el("rect", {
+          x: -42, y: -26, width: 84, height: 52, rx: 9,
+          fill: "#f59e0b", stroke: "#b45309", "stroke-width": 2,
+          filter: sketchUrl || undefined
+        }, g);
+        const text = el("text", {
+          x: 0, y: 6, "text-anchor": "middle",
+          "font-size": 15, "font-weight": 700,
+          "font-family": "var(--font-sans)", fill: "#ffffff"
+        }, g);
+        text.textContent = label;
+
+        const pillG = el("g", { transform: "translate(0, 39)" }, g);
+        const pillRect = el("rect", {
+          x: -41, y: -10, width: 82, height: 20, rx: 4,
+          fill: "var(--svg-pill-bg)", stroke: "#d97706", "stroke-width": 1.2,
+          filter: sketchUrl || undefined
+        }, pillG);
+        const pillText = el("text", {
+          x: 0, y: 3.5, "text-anchor": "middle",
+          "font-size": 10.5, "font-weight": 700,
+          "font-family": "var(--font-mono)", fill: "#92400e"
+        }, pillG);
+
+        const STATUS_STYLE = {
+          "_Prunning": { fill: "#edf6ef", stroke: "#15803d", text: "#166534", pFill: "#f59e0b" },
+          "_Pidle":    { fill: "#f3f1ea", stroke: "#64748b", text: "#475569", pFill: "#fbbf24" },
+          "_Psyscall": { fill: "#fbeeed", stroke: "#dc2626", text: "#991b1b", pFill: "#f59e0b" }
+        };
+
+        function applyStatus(status, highlight = false) {
+          const st = STATUS_STYLE[status] || STATUS_STYLE["_Prunning"];
+          pillRect.setAttribute("fill", st.fill);
+          pillRect.setAttribute("stroke", st.stroke);
+          pillText.setAttribute("fill", st.text);
+          pillText.textContent = status;
+          rect.setAttribute("fill", st.pFill);
+          glow.setAttribute("opacity", highlight ? "1" : "0");
+        }
+
+        applyStatus(initStatus);
+        setPos(g, initX, initY, 1);
+
+        return {
+          el: g,
+          setState({ x = initX, y = initY, status = initStatus, highlight = false, opacity = 1 }) {
+            setPos(g, x, y, opacity);
+            applyStatus(status, highlight);
+          }
+        };
+      },
+
+      /** 3. G: Green Circle (#10B981) with optional micro note tag */
+      createG(parent, label, initX = 0, initY = 0, radius = 19, sketchUrl = "") {
+        const g = el("g", { class: "gmp-node" }, parent);
+        const halo = el("circle", {
+          cx: 0, cy: 0, r: radius + 6,
+          fill: "none", stroke: "#10b981", "stroke-width": 2,
+          "stroke-dasharray": "4 3", opacity: 0, class: "pulse-glow"
+        }, g);
+        const circ = el("circle", {
+          cx: 0, cy: 0, r: radius,
+          fill: "#10b981", stroke: "#047857", "stroke-width": 2,
+          filter: sketchUrl || undefined
+        }, g);
+        const text = el("text", {
+          x: 0, y: 4.5, "text-anchor": "middle",
+          "font-size": 12.5, "font-weight": 700,
+          "font-family": "var(--font-sans)", fill: "#ffffff"
+        }, g);
+        text.textContent = label;
+
+        const tagG = el("g", { transform: `translate(0, ${radius + 14})`, opacity: 0 }, g);
+        const tagRect = el("rect", {
+          x: -36, y: -9, width: 72, height: 18, rx: 4,
+          fill: "#f3f1ea", stroke: "#10b981", "stroke-width": 1.1,
+          filter: sketchUrl || undefined
+        }, tagG);
+        const tagText = el("text", {
+          x: 0, y: 3.5, "text-anchor": "middle",
+          "font-size": 9.5, "font-weight": 700,
+          "font-family": "var(--font-mono)", fill: "#065f46"
+        }, tagG);
+
+        setPos(g, initX, initY, 1);
+
+        return {
+          el: g,
+          setState({ x, y, opacity = 1, highlight = false, ghost = false, tag = "", tagColor = "green", tagY = radius + 14 }) {
+            setPos(g, x, y, opacity);
+            halo.setAttribute("opacity", highlight ? "1" : "0");
+            if (ghost) {
+              circ.setAttribute("fill", "#a8a29e");
+              circ.setAttribute("stroke", "#57534e");
+              circ.setAttribute("stroke-dasharray", "3 2");
+            } else {
+              circ.setAttribute("fill", "#10b981");
+              circ.setAttribute("stroke", "#047857");
+              circ.removeAttribute("stroke-dasharray");
+            }
+            if (tag) {
+              const palette = {
+                green:  { bg: "#edf6ef", bd: "#059669", tx: "#065f46" },
+                amber:  { bg: "#fbf5e6", bd: "#d97706", tx: "#92400e" },
+                red:    { bg: "#fbeeed", bd: "#dc2626", tx: "#991b1b" },
+                indigo: { bg: "#eef0fa", bd: "#6366f1", tx: "#3730a3" },
+                purple: { bg: "#f4f0fa", bd: "#8b5cf6", tx: "#5b21b6" },
+                teal:   { bg: "#ebf5f4", bd: "#0f766e", tx: "#115e59" },
+                slate:  { bg: "#f3f1ea", bd: "#78716c", tx: "#44403c" }
+              }[tagColor] || { bg: "#edf6ef", bd: "#059669", tx: "#065f46" };
+              const w = Math.max(58, Math.ceil(measureTextWidth(tag, 9.5) + 18));
+              tagRect.setAttribute("x", -w / 2);
+              tagRect.setAttribute("width", w);
+              tagRect.setAttribute("fill", palette.bg);
+              tagRect.setAttribute("stroke", palette.bd);
+              tagText.setAttribute("fill", palette.tx);
+              tagText.textContent = tag;
+              tagG.setAttribute("transform", `translate(0, ${tagY})`);
+              tagG.setAttribute("opacity", "1");
+            } else {
+              tagG.setAttribute("opacity", "0");
+            }
+          }
+        };
+      },
+
+      /** 4. G0: Dark Teal Double-Ring Circle (#0F766E with dashed outer ring) */
+      createG0(parent, initX = 0, initY = 0, sketchUrl = "") {
+        const g = el("g", { class: "gmp-node" }, parent);
+        const activeRing = el("circle", {
+          cx: 0, cy: 0, r: 32,
+          fill: "rgba(15,118,110,0.10)", stroke: "#0f766e", "stroke-width": 1.8,
+          opacity: 0, class: "pulse-glow"
+        }, g);
+        el("circle", {
+          cx: 0, cy: 0, r: 25,
+          fill: "none", stroke: "#0f766e", "stroke-width": 2,
+          "stroke-dasharray": "4 3",
+          filter: sketchUrl || undefined
+        }, g);
+        el("circle", {
+          cx: 0, cy: 0, r: 19,
+          fill: "#0f766e", stroke: "#115e59", "stroke-width": 2,
+          filter: sketchUrl || undefined
+        }, g);
+        const text = el("text", {
+          x: 0, y: 4.5, "text-anchor": "middle",
+          "font-size": 12.5, "font-weight": 700,
+          "font-family": "var(--font-sans)", fill: "#ffffff"
+        }, g);
+        text.textContent = "G0";
+        setPos(g, initX, initY, 1);
+
+        return {
+          el: g,
+          setState({ x = initX, y = initY, active = false, opacity = 1 }) {
+            setPos(g, x, y, opacity);
+            activeRing.setAttribute("opacity", active ? "1" : "0");
+          }
+        };
+      },
+
+      /** 5. P Local Run Queue: Light-gray vertical 4-slot ring buffer [0][1][2][3] + head/tail cursors */
+      createRunQ(parent, { x, y, title = "P1.runq", width = 88, slotH = 42, compact = false, markerFn, sketchUrl = "" }) {
+        const g = el("g", { transform: `translate(${x}, ${y})` }, parent);
+        const gap = compact ? 4 : 5;
+        const headerH = 24;
+        const pad = 7;
+        const totalH = headerH + 4 * slotH + 3 * gap + pad * 2;
+        const halfW = width / 2;
+
+        const outer = el("rect", {
+          x: -halfW, y: 0, width, height: totalH, rx: 7,
+          fill: "var(--svg-queue-bg)", stroke: "var(--svg-slot-border)", "stroke-width": 1.6,
+          filter: sketchUrl || undefined
+        }, g);
+
+        const titleEl = el("text", {
+          x: 0, y: 16, "text-anchor": "middle",
+          "font-size": 10.5, "font-weight": 700,
+          "font-family": "var(--font-mono)", fill: "var(--svg-text-sub)"
+        }, g);
+        titleEl.textContent = title;
+
+        const slotCenters = [];
+        const slotRects = [];
+        const slotGhostTexts = [];
+
+        for (let i = 0; i < 4; i++) {
+          const sy = headerH + pad + i * (slotH + gap);
+          const sr = el("rect", {
+            x: -halfW + 7, y: sy, width: width - 14, height: slotH, rx: 4,
+            fill: "var(--svg-slot-bg)", stroke: "var(--svg-slot-border)", "stroke-width": 1.2,
+            filter: sketchUrl || undefined
+          }, g);
+          slotRects.push(sr);
+
+          const idx = el("text", {
+            x: -halfW + 12, y: sy + 13,
+            "font-size": 9.5, "font-weight": 700,
+            "font-family": "var(--font-mono)", fill: "var(--svg-text-muted)"
+          }, g);
+          idx.textContent = `[${i}]`;
+
+          const ghost = el("text", {
+            x: 6, y: sy + slotH / 2 + 4, "text-anchor": "middle",
+            "font-size": 10.5, "font-weight": 600,
+            "font-family": "var(--font-mono)", fill: "#8c867c",
+            opacity: 0
+          }, g);
+          slotGhostTexts.push(ghost);
+
+          slotCenters.push({
+            x: x + (width > 100 ? 6 : 4),
+            y: y + sy + slotH / 2
+          });
+        }
+
+        const headG = el("g", { class: "gmp-node" }, g);
+        el("line", {
+          x1: -halfW - 22, y1: 0, x2: -halfW - 4, y2: 0,
+          stroke: "#0f766e", "stroke-width": 1.9, "stroke-linecap": "round",
+          "marker-end": markerFn ? markerFn("teal") : "",
+          filter: sketchUrl || undefined
+        }, headG);
+        const headLbl = el("text", {
+          x: -halfW - 26, y: 3.5, "text-anchor": "end",
+          "font-size": 10.5, "font-weight": 700,
+          "font-family": "var(--font-mono)", fill: "#0f766e"
+        }, headG);
+
+        const tailG = el("g", { class: "gmp-node" }, g);
+        el("line", {
+          x1: halfW + 22, y1: 0, x2: halfW + 4, y2: 0,
+          stroke: "#d97706", "stroke-width": 1.9, "stroke-linecap": "round",
+          "marker-end": markerFn ? markerFn("amber") : "",
+          filter: sketchUrl || undefined
+        }, tailG);
+        const tailLbl = el("text", {
+          x: halfW + 26, y: 3.5, "text-anchor": "start",
+          "font-size": 10.5, "font-weight": 700,
+          "font-family": "var(--font-mono)", fill: "#d97706"
+        }, tailG);
+
+        function setCursors(headVal, tailVal, opts = {}) {
+          const hIdx = ((headVal % 4) + 4) % 4;
+          const tIdx = ((tailVal % 4) + 4) % 4;
+          const hy = headerH + pad + hIdx * (slotH + gap) + slotH / 2;
+          const ty = headerH + pad + tIdx * (slotH + gap) + slotH / 2;
+          setPos(headG, 0, hy, opts.hideCursors ? 0 : 1);
+          setPos(tailG, 0, ty, opts.hideCursors ? 0 : 1);
+          headLbl.textContent = `head=${headVal}`;
+          tailLbl.textContent = `tail=${tailVal}`;
+          outer.setAttribute("stroke", opts.alert ? "#ef4444" : "var(--svg-slot-border)");
+          outer.setAttribute("stroke-width", opts.alert ? "2.3" : "1.6");
+        }
+
+        function setSlotVisual(index, { ghostText = "", highlight = false, dimmed = false } = {}) {
+          const sr = slotRects[index];
+          const gt = slotGhostTexts[index];
+          if (highlight) {
+            sr.setAttribute("stroke", "#ef4444");
+            sr.setAttribute("stroke-width", "2");
+            sr.setAttribute("fill", "rgba(239,68,68,0.06)");
+          } else if (dimmed) {
+            sr.setAttribute("stroke", "var(--svg-slot-border)");
+            sr.setAttribute("stroke-width", "1.2");
+            sr.setAttribute("stroke-dasharray", "3 2");
+            sr.setAttribute("fill", "rgba(140,134,124,0.10)");
+          } else {
+            sr.setAttribute("stroke", "var(--svg-slot-border)");
+            sr.setAttribute("stroke-width", "1.2");
+            sr.removeAttribute("stroke-dasharray");
+            sr.setAttribute("fill", "var(--svg-slot-bg)");
+          }
+          gt.textContent = ghostText;
+          gt.setAttribute("opacity", ghostText ? "1" : "0");
+        }
+
+        return {
+          el: g,
+          slotCenters,
+          center: { x, y: y + totalH / 2 },
+          bounds: { x, y: y + totalH / 2, w: width, h: totalH },
+          setCursors,
+          setSlotVisual
+        };
+      },
+
+      /** 6. runnext: Single golden dashed box (#D97706) right next to P */
+      createRunNext(parent, x, y, sketchUrl = "") {
+        const g = el("g", { transform: `translate(${x}, ${y})` }, parent);
+        const rect = el("rect", {
+          x: -33, y: -26, width: 66, height: 52, rx: 7,
+          fill: "rgba(217,119,6,0.06)", stroke: "#d97706",
+          "stroke-width": 1.9, "stroke-dasharray": "5 3",
+          filter: sketchUrl || undefined
+        }, g);
+        const lbl = el("text", {
+          x: 0, y: 40, "text-anchor": "middle",
+          "font-size": 10.5, "font-weight": 700,
+          "font-family": "var(--font-mono)", fill: "#d97706"
+        }, g);
+        lbl.textContent = "runnext";
+        return {
+          el: g,
+          center: { x, y },
+          setHighlight(on) {
+            rect.setAttribute("fill", on ? "rgba(217,119,6,0.15)" : "rgba(217,119,6,0.06)");
+            rect.setAttribute("stroke-width", on ? "2.4" : "1.9");
+          }
+        };
+      },
+
+      /** 7 & 8. Sketchy Dashed Zone Box */
+      createZone(parent, { x, y, w, h, title, color = "#8b5cf6", fill = "rgba(139,92,246,0.05)", dashed = true, sketchUrl = "" }) {
+        const g = el("g", {}, parent);
+        const rect = el("rect", {
+          x, y, width: w, height: h, rx: 8,
+          fill, stroke: color, "stroke-width": 1.6,
+          "stroke-dasharray": dashed ? "6 4" : undefined,
+          filter: sketchUrl || undefined
+        }, g);
+        const titleEl = el("text", {
+          x: x + 12, y: y + 18,
+          "font-size": 11, "font-weight": 600,
+          "font-family": "var(--font-serif)", fill: color
+        }, g);
+        titleEl.textContent = title;
+        return {
+          el: g,
+          rect,
+          setHighlight(on) {
+            rect.setAttribute("stroke-width", on ? "2.4" : "1.6");
+          }
+        };
+      },
+
+      /** 9. sysmon: Red Hexagon (#EF4444) */
+      createSysmon(parent, initX, initY, sketchUrl = "") {
+        const g = el("g", { class: "gmp-node" }, parent);
+        const r = 30;
+        const pts = [];
+        for (let i = 0; i < 6; i++) {
+          const ang = (Math.PI / 3) * i - Math.PI / 6;
+          pts.push(`${(Math.cos(ang) * r).toFixed(1)},${(Math.sin(ang) * r).toFixed(1)}`);
+        }
+        const glow = el("polygon", {
+          points: pts.join(" "),
+          fill: "none", stroke: "#ef4444", "stroke-width": 5,
+          opacity: 0, class: "pulse-glow", filter: sketchUrl || undefined
+        }, g);
+        el("polygon", {
+          points: pts.join(" "),
+          fill: "#ef4444", stroke: "#b91c1c", "stroke-width": 2,
+          "stroke-linejoin": "round", filter: sketchUrl || undefined
+        }, g);
+        const text = el("text", {
+          x: 0, y: 4, "text-anchor": "middle",
+          "font-size": 11, "font-weight": 700,
+          "font-family": "var(--font-mono)", fill: "#ffffff"
+        }, g);
+        text.textContent = "sysmon";
+        setPos(g, initX, initY, 1);
+        return {
+          el: g,
+          setState({ x = initX, y = initY, active = false, opacity = 1 }) {
+            setPos(g, x, y, opacity);
+            glow.setAttribute("opacity", active ? "0.65" : "0");
+          }
+        };
+      },
+
+      /** 10. Netpoller (epoll): Indigo Diamond Container (#6366F1) */
+      createNetpoller(parent, x, y, sketchUrl = "") {
+        const g = el("g", { transform: `translate(${x}, ${y})` }, parent);
+        const glow = el("path", {
+          d: "M 0,-66 L 96,0 L 0,66 L -96,0 Z",
+          fill: "none", stroke: "#6366f1", "stroke-width": 5,
+          "stroke-linejoin": "round", opacity: 0, class: "pulse-glow",
+          filter: sketchUrl || undefined
+        }, g);
+        const body = el("path", {
+          d: "M 0,-62 L 90,0 L 0,62 L -90,0 Z",
+          fill: "rgba(99,102,241,0.10)", stroke: "#6366f1", "stroke-width": 2.2,
+          "stroke-linejoin": "round", filter: sketchUrl || undefined
+        }, g);
+        const t1 = el("text", {
+          x: 0, y: -32, "text-anchor": "middle",
+          "font-size": 12, "font-weight": 700,
+          "font-family": "var(--font-serif)", fill: "#4f46e5"
+        }, g);
+        t1.textContent = "Netpoller";
+        const t2 = el("text", {
+          x: 0, y: -17, "text-anchor": "middle",
+          "font-size": 10.5, "font-weight": 700,
+          "font-family": "var(--font-mono)", fill: "#6366f1"
+        }, g);
+        t2.textContent = "(epoll)";
+
+        return {
+          el: g,
+          setActive(on) {
+            glow.setAttribute("opacity", on ? "0.55" : "0");
+            body.setAttribute("fill", on ? "rgba(99,102,241,0.19)" : "rgba(99,102,241,0.10)");
+          }
+        };
+      },
+
+      /** Hand-Drawn Connector Line / Arrow with midpoint note pill */
+      createConnector(parent, { color = "#57534e", width = 1.9, dashed = false, markerEnd = "", flow = false, sketchUrl = "" } = {}) {
+        const g = el("g", { class: "gmp-fade", opacity: 1 }, parent);
+        const path = el("path", {
+          d: "M 0 0 L 0 0",
+          fill: "none",
+          stroke: color,
+          "stroke-width": width,
+          "stroke-dasharray": dashed ? "6 4" : undefined,
+          "stroke-linecap": "round",
+          "marker-end": markerEnd || undefined,
+          class: flow ? "dash-flow" : "",
+          filter: sketchUrl || undefined
+        }, g);
+
+        const lblG = el("g", { opacity: 0 }, g);
+        const lblBg = el("rect", {
+          x: -28, y: -10, width: 56, height: 20, rx: 4,
+          fill: "var(--svg-pill-bg)", stroke: color, "stroke-width": 1.1,
+          filter: sketchUrl || undefined
+        }, lblG);
+        const lblTx = el("text", {
+          x: 0, y: 3.5, "text-anchor": "middle",
+          "font-size": 10, "font-weight": 600,
+          "font-family": "var(--font-mono)", fill: color
+        }, lblG);
+
+        return {
+          el: g,
+          set({ x1, y1, x2, y2, curve = 0, opacity = 1, label = "", color: c, dashed: d, width: w, markerEnd: me }) {
+            g.setAttribute("opacity", String(opacity));
+            if (c) {
+              path.setAttribute("stroke", c);
+              lblBg.setAttribute("stroke", c);
+              lblTx.setAttribute("fill", c);
+            }
+            if (w !== undefined) path.setAttribute("stroke-width", String(w));
+            if (d !== undefined) {
+              if (d) path.setAttribute("stroke-dasharray", "6 4");
+              else path.removeAttribute("stroke-dasharray");
+            }
+            if (me !== undefined) {
+              if (me) path.setAttribute("marker-end", me);
+              else path.removeAttribute("marker-end");
+            }
+            const mx = (x1 + x2) / 2;
+            const my = (y1 + y2) / 2;
+            let lx = mx, ly = my;
+            if (curve !== 0) {
+              const dx = x2 - x1, dy = y2 - y1;
+              const len = Math.hypot(dx, dy) || 1;
+              const nx = -dy / len, ny = dx / len;
+              const cx = mx + nx * curve, cy = my + ny * curve;
+              path.setAttribute("d", `M ${x1.toFixed(1)} ${y1.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`);
+              lx = 0.25 * x1 + 0.5 * cx + 0.25 * x2;
+              ly = 0.25 * y1 + 0.5 * cy + 0.25 * y2;
+            } else {
+              path.setAttribute("d", `M ${x1.toFixed(1)} ${y1.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}`);
+            }
+            if (label) {
+              const bw = Math.max(52, Math.ceil(measureTextWidth(label, 10) + 18));
+              lblBg.setAttribute("x", -bw / 2);
+              lblBg.setAttribute("width", bw);
+              lblTx.textContent = label;
+              lblG.setAttribute("transform", `translate(${lx.toFixed(1)}, ${ly.toFixed(1)})`);
+              lblG.setAttribute("opacity", "1");
+            } else {
+              lblG.setAttribute("opacity", "0");
+            }
+          }
+        };
+      },
+
+      /** Paper Margin-Note Callout Badge */
+      createCallout(parent, { x, y, text = "", color = "#24576b", bg = "#f3f1ea", maxW = 240, sketchUrl = "" }) {
+        const g = el("g", { class: "gmp-node" }, parent);
+        const rect = el("rect", {
+          x: -maxW / 2, y: -14, width: maxW, height: 28, rx: 4,
+          fill: bg, stroke: color, "stroke-width": 1.25, "stroke-dasharray": "4 2.5",
+          filter: sketchUrl || undefined
+        }, g);
+        const tx = el("text", {
+          x: 0, y: 4, "text-anchor": "middle",
+          "font-size": 11, "font-weight": 600,
+          "font-family": "var(--font-sans)", fill: color
+        }, g);
+        tx.textContent = text;
+        setPos(g, x, y, 0);
+
+        return {
+          el: g,
+          set({ x: nx = x, y: ny = y, text: nt, opacity = 1, color: nc, bg: nbg, width: nw }) {
+            setPos(g, nx, ny, opacity);
+            if (nt !== undefined) tx.textContent = nt;
+            if (nc) { rect.setAttribute("stroke", nc); tx.setAttribute("fill", nc); }
+            if (nbg) rect.setAttribute("fill", nbg);
+            const curText = nt !== undefined ? nt : tx.textContent;
+            const autoW = Math.ceil(measureTextWidth(curText, 11) + 28);
+            const finalW = Math.max(nw || maxW, autoW);
+            rect.setAttribute("x", -finalW / 2);
+            rect.setAttribute("width", finalW);
+          }
+        };
+      }
+    };
+
+    /* ========================================================================
+       3. Render Global Legend Section (10 Hand-Drawn Standardized Entities)
+       ======================================================================== */
+    (function buildGlobalLegend() {
+      const grid = document.getElementById("legend-grid");
+      const sketchDef = `<defs><filter id="lg-sk" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" seed="5"/><feDisplacementMap in="SourceGraphic" scale="1.3"/></filter></defs>`;
+
+      const items = [
+        {
+          name: "M（操作系统线程）",
+          desc: "蓝三角工作态；旋转虚线环 Spinning 自旋；半透明灰蓝 Parked 休眠",
+          svg: `<svg width="60" height="48" viewBox="-38 -28 76 56">${sketchDef}
+            <circle cx="-12" cy="1" r="19" fill="rgba(59,130,246,0.06)" stroke="#3b82f6" stroke-width="1.4" stroke-dasharray="4 3" class="spin-ring"/>
+            <polygon points="-12,-14 2,11 -26,11" fill="#3b82f6" stroke="#1d4ed8" stroke-width="1.5" stroke-linejoin="round" filter="url(#lg-sk)"/>
+            <text x="-12" y="6" text-anchor="middle" font-size="8.5" font-weight="700" fill="#fff">M</text>
+            <polygon points="20,-10 31,10 9,10" fill="#93c5fd" stroke="#64748b" stroke-width="1.2" opacity="0.55" stroke-linejoin="round" filter="url(#lg-sk)"/>
+          </svg>`
+        },
+        {
+          name: "P（逻辑处理器）",
+          desc: "黄色圆角矩形 (#F59E0B)，下方实时显示 _Prunning / _Pidle / _Psyscall",
+          svg: `<svg width="60" height="48" viewBox="0 0 62 50">${sketchDef}
+            <rect x="9" y="5" width="44" height="24" rx="5" fill="#f59e0b" stroke="#b45309" stroke-width="1.5" filter="url(#lg-sk)"/>
+            <text x="31" y="21" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">P1</text>
+            <rect x="6" y="33" width="50" height="13" rx="3" fill="#edf6ef" stroke="#15803d" stroke-width="1"/>
+            <text x="31" y="42" text-anchor="middle" font-size="7.5" font-weight="700" font-family="monospace" fill="#166534">_Prunning</text>
+          </svg>`
+        },
+        {
+          name: "G（用户协程 Goroutine）",
+          desc: "绿色圆形 (#10B981)，内部标注 G1、G2 等编号",
+          svg: `<svg width="60" height="48" viewBox="0 0 62 50">${sketchDef}
+            <circle cx="31" cy="25" r="16" fill="#10b981" stroke="#047857" stroke-width="1.8" filter="url(#lg-sk)"/>
+            <text x="31" y="29" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">G1</text>
+          </svg>`
+        },
+        {
+          name: "G0（M 专属系统栈）",
+          desc: "深青色双环圆形 (#0F766E，带虚线外环)，负责 schedule() 调度中枢",
+          svg: `<svg width="60" height="48" viewBox="0 0 62 50">${sketchDef}
+            <circle cx="31" cy="25" r="20" fill="none" stroke="#0f766e" stroke-width="1.6" stroke-dasharray="3.5 2.5" filter="url(#lg-sk)"/>
+            <circle cx="31" cy="25" r="14.5" fill="#0f766e" stroke="#115e59" stroke-width="1.5" filter="url(#lg-sk)"/>
+            <text x="31" y="29" text-anchor="middle" font-size="10.5" font-weight="700" fill="#fff">G0</text>
+          </svg>`
+        },
+        {
+          name: "P 本地队列（Local RunQ）",
+          desc: "浅灰竖向 4 格定长环形数组 [0][1][2][3]，带 head / tail 游标",
+          svg: `<svg width="60" height="48" viewBox="0 0 62 50">${sketchDef}
+            <rect x="17" y="4" width="28" height="42" rx="4" fill="#f3f0e6" stroke="#8c867c" stroke-width="1.2" filter="url(#lg-sk)"/>
+            <rect x="20" y="7" width="22" height="7" rx="1.5" fill="#fdfcf8" stroke="#c8c2b6"/>
+            <rect x="20" y="16" width="22" height="7" rx="1.5" fill="#fdfcf8" stroke="#c8c2b6"/>
+            <rect x="20" y="25" width="22" height="7" rx="1.5" fill="#fdfcf8" stroke="#c8c2b6"/>
+            <rect x="20" y="34" width="22" height="7" rx="1.5" fill="#fdfcf8" stroke="#c8c2b6"/>
+            <line x1="5" y1="10.5" x2="15" y2="10.5" stroke="#0f766e" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="57" y1="28.5" x2="47" y2="28.5" stroke="#d97706" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>`
+        },
+        {
+          name: "runnext 插队槽位",
+          desc: "紧贴 P 旁边的金色虚线框 (#D97706)，新 G 优先插队提升局部性",
+          svg: `<svg width="60" height="48" viewBox="0 0 62 50">${sketchDef}
+            <rect x="12" y="8" width="38" height="26" rx="5" fill="rgba(217,119,6,0.08)" stroke="#d97706" stroke-width="1.7" stroke-dasharray="4 2.5" filter="url(#lg-sk)"/>
+            <text x="31" y="45" text-anchor="middle" font-size="8.5" font-weight="700" font-family="monospace" fill="#d97706">runnext</text>
+          </svg>`
+        },
+        {
+          name: "全局队列（Global RunQ）",
+          desc: "紫色横向虚线框 (#8B5CF6)，内部以单向箭头连接表示 schedlink 链表",
+          svg: `<svg width="60" height="48" viewBox="0 0 62 50">${sketchDef}
+            <rect x="3" y="11" width="56" height="28" rx="5" fill="rgba(139,92,246,0.06)" stroke="#8b5cf6" stroke-width="1.5" stroke-dasharray="4 2.5" filter="url(#lg-sk)"/>
+            <circle cx="18" cy="25" r="7.5" fill="#10b981" filter="url(#lg-sk)"/>
+            <path d="M 26 25 L 36 25 M 33 22 L 36.5 25 L 33 28" fill="none" stroke="#8b5cf6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="45" cy="25" r="7.5" fill="#10b981" filter="url(#lg-sk)"/>
+          </svg>`
+        },
+        {
+          name: "休眠 M 队列（midle）",
+          desc: "浅蓝灰色虚线框 (#64748B)，存放半透明休眠的操作系统线程 M",
+          svg: `<svg width="60" height="48" viewBox="0 0 62 50">${sketchDef}
+            <rect x="4" y="10" width="54" height="30" rx="5" fill="rgba(100,116,139,0.06)" stroke="#64748b" stroke-width="1.4" stroke-dasharray="4 2.5" filter="url(#lg-sk)"/>
+            <polygon points="22,16 32,34 12,34" fill="#93c5fd" stroke="#64748b" stroke-width="1.2" opacity="0.55" filter="url(#lg-sk)"/>
+            <polygon points="42,16 52,34 32,34" fill="#93c5fd" stroke="#64748b" stroke-width="1.2" opacity="0.55" filter="url(#lg-sk)"/>
+          </svg>`
+        },
+        {
+          name: "sysmon 监控线程",
+          desc: "红色六边形 (#EF4444)，独立无 P 运行，负责系统调用超时剥离与抢占",
+          svg: `<svg width="60" height="48" viewBox="-31 -25 62 50">${sketchDef}
+            <polygon points="18,-10 18,10 0,20 -18,10 -18,-10 0,-20" fill="#ef4444" stroke="#b91c1c" stroke-width="1.6" filter="url(#lg-sk)"/>
+            <text x="0" y="3.5" text-anchor="middle" font-size="8" font-weight="700" font-family="monospace" fill="#fff">sysmon</text>
+          </svg>`
+        },
+        {
+          name: "Netpoller (epoll)",
+          desc: "靛蓝色菱形容器 (#6366F1)，托管非阻塞网络 Socket 就绪事件监听",
+          svg: `<svg width="60" height="48" viewBox="-31 -25 62 50">${sketchDef}
+            <path d="M 0,-20 L 27,0 L 0,20 L -27,0 Z" fill="rgba(99,102,241,0.12)" stroke="#6366f1" stroke-width="1.7" stroke-linejoin="round" filter="url(#lg-sk)"/>
+            <text x="0" y="3" text-anchor="middle" font-size="7.5" font-weight="700" font-family="monospace" fill="#4f46e5">epoll</text>
+          </svg>`
+        }
+      ];
+
+      items.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "legend-item";
+        div.innerHTML = `
+          <div class="legend-icon">${item.svg}</div>
+          <div class="legend-text">
+            <div class="legend-name">${item.name}</div>
+            <div class="legend-desc">${item.desc}</div>
+          </div>`;
+        grid.appendChild(div);
+      });
+    })();
+
+    /* ========================================================================
+       4. Seven Independent Interactive Scenario Configurations
+          Edit step titles / descriptions directly inside each scene's steps[]
+       ======================================================================== */
+    const SCENES_CONFIG = [
+      /* ----------------------------------------------------------------------
+         场景 1：创建 G、runnext 插队与积极唤醒（wakep）
+         ---------------------------------------------------------------------- */
+      {
+        id: "scene-1",
+        num: "01",
+        title: "创建 G、runnext 插队与积极唤醒（wakep）",
+        takeaway: "新协程优先抢占当前 P 的 runnext 槽位以优化缓存局部性；若存在空闲 P 且无自旋 M，立即调用 wakep() 唤醒休眠线程并行拉取任务。",
+        viewBox: "0 0 880 430",
+        build(svg, defs) {
+          const { marker, sketch } = defs;
+          const bgLayer = el("g", {}, svg);
+          const lineLayer = el("g", {}, svg);
+          const nodeLayer = el("g", {}, svg);
+          const fxLayer = el("g", {}, svg);
+
+          Primitives.createZone(bgLayer, {
+            x: 28, y: 12, w: 416, h: 406,
+            title: "执行单元 1（Active Core）",
+            color: "#3b82f6", fill: "rgba(59,130,246,0.025)", dashed: false, sketchUrl: sketch
+          });
+          const pidleZone = Primitives.createZone(bgLayer, {
+            x: 486, y: 24, w: 366, h: 174,
+            title: "空闲 P 池（sched.pidle）",
+            color: "#d97706", fill: "rgba(245,158,11,0.035)", dashed: true, sketchUrl: sketch
+          });
+          const midleZone = Primitives.createZone(bgLayer, {
+            x: 486, y: 244, w: 366, h: 158,
+            title: "休眠 M 队列（sched.midle）",
+            color: "#64748b", fill: "rgba(100,116,139,0.045)", dashed: true, sketchUrl: sketch
+          });
+
+          const spinCounter = Primitives.createCallout(fxLayer, {
+            x: 669, y: 222, text: "sched.nmspinning = 0", color: "#57534e", bg: "#f3f1ea", maxW: 196, sketchUrl: sketch
+          });
+
+          const p1Runq = Primitives.createRunQ(bgLayer, {
+            x: 240, y: 214, title: "P1.runq", width: 92, slotH: 37, compact: true, markerFn: marker, sketchUrl: sketch
+          });
+          const p1Runnext = Primitives.createRunNext(bgLayer, 366, 142, sketch);
+
+          const connM1P1 = Primitives.createConnector(lineLayer, { color: "#3b82f6", width: 2.3, sketchUrl: sketch });
+          const connM1G2 = Primitives.createConnector(lineLayer, { color: "#10b981", width: 2.1, sketchUrl: sketch });
+          const connP1RN = Primitives.createConnector(lineLayer, { color: "#d97706", width: 1.7, dashed: true, sketchUrl: sketch });
+          const connWakep = Primitives.createConnector(lineLayer, { color: "#ef4444", width: 2.1, dashed: true, markerEnd: marker("red"), flow: true, sketchUrl: sketch });
+          const connM2P2 = Primitives.createConnector(lineLayer, { color: "#3b82f6", width: 2.3, sketchUrl: sketch });
+          const connStealLook = Primitives.createConnector(lineLayer, { color: "#3b82f6", width: 1.9, dashed: true, markerEnd: marker("blue"), flow: true, sketchUrl: sketch });
+          const connNewG5 = Primitives.createConnector(lineLayer, { color: "#10b981", width: 1.9, dashed: true, markerEnd: marker("green"), sketchUrl: sketch });
+
+          const M1 = Primitives.createM(nodeLayer, "M1", 106, 142, sketch);
+          const P1 = Primitives.createP(nodeLayer, "P1", 240, 142, "_Prunning", sketch);
+          const M2 = Primitives.createM(nodeLayer, "M2", 669, 326, sketch);
+          const P2 = Primitives.createP(nodeLayer, "P2", 748, 114, "_Pidle", sketch);
+
+          const G2 = Primitives.createG(nodeLayer, "G2", 106, 76, 19, sketch);
+          const G3 = Primitives.createG(nodeLayer, "G3", 366, 142, 19, sketch);
+          const G4 = Primitives.createG(nodeLayer, "G4", p1Runq.slotCenters[0].x, p1Runq.slotCenters[0].y, 16, sketch);
+          const G5 = Primitives.createG(nodeLayer, "G5", 214, 76, 19, sketch);
+
+          const callout = Primitives.createCallout(fxLayer, {
+            x: 669, y: 374, text: "", color: "#24576b", bg: "#f3f1ea", maxW: 320, sketchUrl: sketch
+          });
+
+          connM1P1.set({ ...Geom.connect({ type: "tri", x: 106, y: 142 }, { type: "rect", x: 240, y: 142, w: 84, h: 52 }), opacity: 1 });
+          connM1G2.set({ ...Geom.connect({ type: "tri", x: 106, y: 142 }, { type: "circle", x: 106, y: 76, r: 19 }), opacity: 1 });
+          connP1RN.set({ ...Geom.connect({ type: "rect", x: 240, y: 142, w: 84, h: 52 }, { type: "rect", x: 366, y: 142, w: 66, h: 52 }), opacity: 1 });
+
+          return {
+            M1, P1, M2, P2, G2, G3, G4, G5, p1Runq, p1Runnext, pidleZone, midleZone,
+            spinCounter, connWakep, connM2P2, connStealLook, connNewG5, callout
+          };
+        },
+        steps: [
+          {
+            title: "初始状态：M1 + P1 正在执行 G2，空闲区有 P2，休眠队列有 M2",
+            desc: "<code>M1</code> 绑定 <code>P1</code>（<code>_Prunning</code>）正在运行 <code>G2</code>；<code>P1.runnext</code> 槽位已有 <code>G3</code>，本地队列 <code>P1.runq[0]</code> 中有 <code>G4</code>（<code>head=0, tail=1</code>）。全局存在空闲 <code>P2</code> 与休眠线程 <code>M2</code>，且当前自旋线程数 <code>nmspinning == 0</code>。",
+            apply(u) {
+              u.M1.setState({ x: 106, y: 142, mode: "normal" });
+              u.P1.setState({ x: 240, y: 142, status: "_Prunning" });
+              u.G2.setState({ x: 106, y: 76, tag: "running", tagY: -27 });
+              u.G3.setState({ x: 366, y: 142, opacity: 1 });
+              u.G4.setState({ x: u.p1Runq.slotCenters[0].x, y: u.p1Runq.slotCenters[0].y });
+              u.G5.setState({ x: 214, y: 76, opacity: 0 });
+              u.p1Runq.setCursors(0, 1);
+              u.p1Runnext.setHighlight(false);
+              u.P2.setState({ x: 748, y: 114, status: "_Pidle", highlight: false });
+              u.M2.setState({ x: 669, y: 326, mode: "parked" });
+              u.spinCounter.set({ x: 669, y: 222, text: "sched.nmspinning = 0", color: "#57534e", bg: "#f3f1ea", opacity: 1 });
+              u.connNewG5.set({ x1: 125, y1: 76, x2: 192, y2: 76, opacity: 0 });
+              u.connWakep.set({ x1: 282, y1: 125, x2: 698, y2: 105, opacity: 0 });
+              u.connM2P2.set({ x1: 632, y1: 114, x2: 702, y2: 114, opacity: 0 });
+              u.connStealLook.set({ x1: 570, y1: 120, x2: 410, y2: 120, opacity: 0 });
+              u.callout.set({ opacity: 0 });
+            }
+          },
+          {
+            title: "步骤 1：G2 执行 go func() 创建新协程 G5",
+            desc: "<code>G2</code> 中执行 <code>go func()</code> 语句，编译器将其翻译为调用 <code>runtime.newproc()</code>：从当前 P 的 <code>gFree</code> 缓存（或堆）中获取一个 <code>g</code> 结构体，初始化其栈与入口参数，新协程 <code>G5</code> 进入 <code>_Grunnable</code> 就绪态。",
+            apply(u) {
+              u.G2.setState({ x: 106, y: 76, highlight: true, tag: "go func()", tagColor: "amber", tagY: -27 });
+              u.G5.setState({ x: 214, y: 76, opacity: 1, highlight: true, tag: "newproc()", tagColor: "green", tagY: -27 });
+              const c = Geom.connect({ type: "circle", x: 106, y: 76, r: 19 }, { type: "circle", x: 214, y: 76, r: 19 });
+              u.connNewG5.set({ ...c, opacity: 1 });
+              u.G3.setState({ x: 366, y: 142, opacity: 1 });
+              u.p1Runq.setCursors(0, 1);
+              u.p1Runnext.setHighlight(false);
+              u.P2.setState({ x: 748, y: 114, status: "_Pidle", highlight: false });
+              u.M2.setState({ x: 669, y: 326, mode: "parked" });
+              u.spinCounter.set({ x: 669, y: 222, text: "sched.nmspinning = 0", color: "#57534e", bg: "#f3f1ea", opacity: 1 });
+              u.connWakep.set({ x1: 282, y1: 125, x2: 698, y2: 105, opacity: 0 });
+              u.connM2P2.set({ x1: 632, y1: 114, x2: 702, y2: 114, opacity: 0 });
+              u.connStealLook.set({ x1: 570, y1: 120, x2: 410, y2: 120, opacity: 0 });
+              u.callout.set({ opacity: 0 });
+            }
+          },
+          {
+            title: "步骤 2：G5 插队放入 P1.runnext，挤出原 G3 至 P1.runq 队尾",
+            desc: "调用 <code>runqput(P1, G5, next=true)</code>：由于新创建的 <code>G5</code> 与当前 <code>G2</code> 极可能共享热缓存数据（局部性优化），<code>G5</code> 直接抢占 <code>P1.runnext</code>；原本在 <code>runnext</code> 中的 <code>G3</code> 被挤出，平滑落入 <code>P1.runq[1]</code> 队尾（<code>tail: 1 → 2</code>）。",
+            apply(u) {
+              u.G2.setState({ x: 106, y: 76, highlight: false, tag: "running", tagY: -27 });
+              u.connNewG5.set({ x1: 125, y1: 76, x2: 192, y2: 76, opacity: 0 });
+              u.G5.setState({ x: 366, y: 142, opacity: 1, highlight: true, tag: "插队入驻", tagColor: "amber", tagY: -31 });
+              u.G3.setState({ x: u.p1Runq.slotCenters[1].x, y: u.p1Runq.slotCenters[1].y, opacity: 1, highlight: true });
+              u.p1Runq.setCursors(0, 2);
+              u.p1Runnext.setHighlight(true);
+              u.P2.setState({ x: 748, y: 114, status: "_Pidle", highlight: false });
+              u.M2.setState({ x: 669, y: 326, mode: "parked" });
+              u.spinCounter.set({ x: 669, y: 222, text: "sched.nmspinning = 0", color: "#57534e", bg: "#f3f1ea", opacity: 1 });
+              u.connWakep.set({ x1: 282, y1: 125, x2: 698, y2: 105, opacity: 0 });
+              u.connM2P2.set({ x1: 632, y1: 114, x2: 702, y2: 114, opacity: 0 });
+              u.connStealLook.set({ x1: 570, y1: 120, x2: 410, y2: 120, opacity: 0 });
+              u.callout.set({ opacity: 0 });
+            }
+          },
+          {
+            title: "步骤 3：Peek 全局状态，满足条件触发积极唤醒 wakep()",
+            desc: "<code>newproc()</code> 末尾无锁 Peek 全局状态：发现存在空闲 <code>P2</code>（<code>sched.npidle > 0</code>）且当前无自旋线程（<code>sched.nmspinning == 0</code>），立即调用 <code>wakep()</code> 准备唤醒一个 M，避免多核 CPU 闲置。",
+            apply(u) {
+              u.G5.setState({ x: 366, y: 142, opacity: 1, highlight: false });
+              u.G3.setState({ x: u.p1Runq.slotCenters[1].x, y: u.p1Runq.slotCenters[1].y, opacity: 1, highlight: false });
+              u.p1Runq.setCursors(0, 2);
+              u.p1Runnext.setHighlight(false);
+              u.P2.setState({ x: 748, y: 114, status: "_Pidle", highlight: true });
+              u.M2.setState({ x: 669, y: 326, mode: "parked" });
+              u.spinCounter.set({ x: 669, y: 222, text: "npidle>0 && nmspinning==0 ✓", color: "#b91c1c", bg: "#fbeeed", opacity: 1, width: 224 });
+              const c = Geom.connect({ type: "rect", x: 240, y: 142, w: 84, h: 52 }, { type: "rect", x: 748, y: 114, w: 84, h: 52 });
+              u.connWakep.set({ ...c, curve: -58, opacity: 1, label: "wakep()" });
+              u.connM2P2.set({ x1: 632, y1: 114, x2: 702, y2: 114, opacity: 0 });
+              u.connStealLook.set({ x1: 570, y1: 120, x2: 410, y2: 120, opacity: 0 });
+              u.callout.set({ opacity: 0 });
+            }
+          },
+          {
+            title: "步骤 4：M2 被唤醒与 P2 绑定并进入 Spinning 自旋态",
+            desc: "<code>wakep()</code> 通过 <code>startm()</code> 从休眠队列唤醒 <code>M2</code>，与 <code>P2</code> 绑定（<code>_Prunning</code>）并亮起 <code>Spinning</code> 自旋光环（<code>nmspinning = 1</code>）。注意：<code>G5</code> 仍留在 <code>P1.runnext</code>，由自旋的 <code>M2</code> 主动发起偷取（Pull 模式）而非强行推给 <code>P2</code>。",
+            apply(u) {
+              u.G5.setState({ x: 366, y: 142, opacity: 1, tag: "留在 P1", tagColor: "amber", tagY: -31 });
+              u.G3.setState({ x: u.p1Runq.slotCenters[1].x, y: u.p1Runq.slotCenters[1].y, opacity: 1 });
+              u.p1Runq.setCursors(0, 2);
+              u.P2.setState({ x: 748, y: 114, status: "_Prunning", highlight: false });
+              u.M2.setState({ x: 604, y: 114, mode: "spinning" });
+              u.spinCounter.set({ x: 669, y: 222, text: "sched.nmspinning = 1 (自旋中)", color: "#24576b", bg: "#eef4f7", opacity: 1, width: 224 });
+              u.connWakep.set({ x1: 282, y1: 125, x2: 698, y2: 105, opacity: 0 });
+              const cBind = Geom.connect({ type: "tri", x: 604, y: 114 }, { type: "rect", x: 748, y: 114, w: 84, h: 52 });
+              u.connM2P2.set({ ...cBind, opacity: 1 });
+              const cSteal = Geom.connect({ type: "tri", x: 604, y: 114 }, { type: "rect", x: 240, y: 312, w: 92, h: 196 });
+              u.connStealLook.set({ ...cSteal, curve: 32, opacity: 1, label: "主动去偷取任务" });
+              u.callout.set({
+                x: 669, y: 326, text: "M2 已离队唤醒，准备通过 findrunnable() 窃取",
+                color: "#24576b", bg: "#f3f1ea", opacity: 1, width: 320
+              });
+            }
+          }
+        ]
+      },
+
+      /* ----------------------------------------------------------------------
+         场景 2：协程切换与 G0 调度中枢（线程 M 复用）
+         ---------------------------------------------------------------------- */
+      {
+        id: "scene-2",
+        num: "02",
+        title: "协程切换与 G0 调度中枢（线程 M 复用）",
+        takeaway: "协程结束或让出时，M 不会销毁；必须先切回专属系统栈 G0 执行 schedule() 选取下一个 G，再经由 gogo() 恢复上下文实现线程零开销复用。",
+        viewBox: "0 0 880 430",
+        build(svg, defs) {
+          const { marker, sketch } = defs;
+          const bgLayer = el("g", {}, svg);
+          const lineLayer = el("g", {}, svg);
+          const nodeLayer = el("g", {}, svg);
+          const fxLayer = el("g", {}, svg);
+
+          Primitives.createZone(bgLayer, {
+            x: 32, y: 26, w: 158, h: 98,
+            title: "gFree 协程缓存池",
+            color: "#64748b", fill: "rgba(100,116,139,0.045)", dashed: true, sketchUrl: sketch
+          });
+
+          const g0Zone = Primitives.createZone(bgLayer, {
+            x: 32, y: 264, w: 282, h: 138,
+            title: "M1 专属调度系统栈（System Stack）",
+            color: "#0f766e", fill: "rgba(15,118,110,0.045)", dashed: true, sketchUrl: sketch
+          });
+
+          const p1Runnext = Primitives.createRunNext(bgLayer, 566, 178, sketch);
+          const p1Runq = Primitives.createRunQ(bgLayer, {
+            x: 726, y: 112, title: "P1.runq", width: 96, slotH: 42, markerFn: marker, sketchUrl: sketch
+          });
+
+          const connM1P1 = Primitives.createConnector(lineLayer, { color: "#3b82f6", width: 2.3, sketchUrl: sketch });
+          const connP1RN = Primitives.createConnector(lineLayer, { color: "#d97706", width: 1.7, dashed: true, sketchUrl: sketch });
+          const connM1G = Primitives.createConnector(lineLayer, { color: "#10b981", width: 2.2, sketchUrl: sketch });
+          const connM1G0 = Primitives.createConnector(lineLayer, { color: "#0f766e", width: 2.1, dashed: true, sketchUrl: sketch });
+          const connG0Fetch = Primitives.createConnector(lineLayer, { color: "#0f766e", width: 2.1, dashed: true, markerEnd: marker("teal"), flow: true, sketchUrl: sketch });
+          const connGogo = Primitives.createConnector(lineLayer, { color: "#10b981", width: 2.2, dashed: true, markerEnd: marker("green"), flow: true, sketchUrl: sketch });
+
+          const M1 = Primitives.createM(nodeLayer, "M1", 282, 178, sketch);
+          const P1 = Primitives.createP(nodeLayer, "P1", 436, 178, "_Prunning", sketch);
+          const G0 = Primitives.createG0(nodeLayer, 172, 338, sketch);
+          const G1 = Primitives.createG(nodeLayer, "G1", 282, 78, 19, sketch);
+          const G2 = Primitives.createG(nodeLayer, "G2", p1Runq.slotCenters[0].x, p1Runq.slotCenters[0].y, 19, sketch);
+
+          const stackBadge = Primitives.createCallout(fxLayer, {
+            x: 472, y: 338, text: "", color: "#0f766e", bg: "#f3f1ea", maxW: 310, sketchUrl: sketch
+          });
+
+          connM1P1.set({ ...Geom.connect({ type: "tri", x: 282, y: 178 }, { type: "rect", x: 436, y: 178, w: 84, h: 52 }), opacity: 1 });
+          connP1RN.set({ ...Geom.connect({ type: "rect", x: 436, y: 178, w: 84, h: 52 }, { type: "rect", x: 566, y: 178, w: 66, h: 52 }), opacity: 1 });
+
+          return {
+            M1, P1, G0, G1, G2, p1Runq, p1Runnext, g0Zone,
+            connM1G, connM1G0, connG0Fetch, connGogo, stackBadge
+          };
+        },
+        steps: [
+          {
+            title: "初始状态：M1 + P1 正在用户栈执行 G1，P1.runq 中等待着 G2",
+            desc: "操作系统线程 <code>M1</code> 绑定逻辑处理器 <code>P1</code>，当前正在用户协程栈上运行 <code>G1</code>；<code>M1</code> 专属的调度协程 <code>G0</code> 处于待命状态；<code>P1.runnext</code> 为空，<code>P1.runq[0]</code> 中存有就绪协程 <code>G2</code>。",
+            apply(u) {
+              u.M1.setState({ x: 282, y: 178, mode: "normal" });
+              u.P1.setState({ x: 436, y: 178, status: "_Prunning" });
+              u.G1.setState({ x: 282, y: 78, opacity: 1, ghost: false, tag: "running", tagY: -28 });
+              u.G2.setState({ x: u.p1Runq.slotCenters[0].x, y: u.p1Runq.slotCenters[0].y, opacity: 1, highlight: false });
+              u.G0.setState({ x: 172, y: 338, active: false });
+              u.p1Runq.setCursors(0, 1);
+              u.connM1G.set({ ...Geom.connect({ type: "tri", x: 282, y: 178 }, { type: "circle", x: 282, y: 78, r: 19 }), opacity: 1 });
+              u.connM1G0.set({ ...Geom.connect({ type: "tri", x: 282, y: 178 }, { type: "g0", x: 172, y: 338 }), opacity: 0.35, dashed: true, width: 1.8, label: "" });
+              u.connG0Fetch.set({ x1: 198, y1: 338, x2: 678, y2: 162, opacity: 0 });
+              u.connGogo.set({ x1: 198, y1: 320, x2: 282, y2: 98, opacity: 0 });
+              u.stackBadge.set({ x: 472, y: 338, text: "M1 当前执行上下文：用户栈 G1", color: "#065f46", bg: "#edf6ef", opacity: 1, width: 256 });
+            }
+          },
+          {
+            title: "步骤 1：G1 执行完毕调用 goexit()，虚化回收至 gFree",
+            desc: "<code>G1</code> 的业务函数返回后，自动落入预设在栈底的返回地址 <code>goexit()</code>。<code>G1</code> 结束生命周期并虚化移入 <code>gFree</code> 本地缓存池，等待后续 <code>newproc()</code> 复用其内存结构。",
+            apply(u) {
+              u.G1.setState({ x: 112, y: 80, opacity: 0.48, ghost: true, tag: "goexit() → 回收", tagColor: "slate", tagY: 31 });
+              u.G2.setState({ x: u.p1Runq.slotCenters[0].x, y: u.p1Runq.slotCenters[0].y, opacity: 1, highlight: false });
+              u.G0.setState({ x: 172, y: 338, active: false });
+              u.p1Runq.setCursors(0, 1);
+              u.connM1G.set({ x1: 282, y1: 150, x2: 282, y2: 98, opacity: 0 });
+              u.connM1G0.set({ ...Geom.connect({ type: "tri", x: 282, y: 178 }, { type: "g0", x: 172, y: 338 }), opacity: 0.45, dashed: true, width: 1.9, label: "" });
+              u.connG0Fetch.set({ x1: 198, y1: 338, x2: 678, y2: 162, opacity: 0 });
+              u.connGogo.set({ x1: 198, y1: 320, x2: 282, y2: 98, opacity: 0 });
+              u.stackBadge.set({ x: 472, y: 338, text: "G1 已退出，M1 准备切回系统栈", color: "#57534e", bg: "#f3f1ea", opacity: 1, width: 256 });
+            }
+          },
+          {
+            title: "步骤 2：M1 切至专属系统栈 G0，执行 schedule() 调度循环",
+            desc: "通过汇编 <code>mcall(goexit0)</code> 将 CPU 寄存器栈指针从用户栈切换到 <code>M1</code> 专属的系统栈 <code>G0</code>（<code>M1</code> 与 <code>G0</code> 实线高亮连接），由 <code>G0</code> 驱动调度中枢函数 <code>schedule()</code>。",
+            apply(u) {
+              u.G1.setState({ x: 112, y: 80, opacity: 0.35, ghost: true, tag: "已回收", tagColor: "slate", tagY: 31 });
+              u.G2.setState({ x: u.p1Runq.slotCenters[0].x, y: u.p1Runq.slotCenters[0].y, opacity: 1, highlight: false });
+              u.G0.setState({ x: 172, y: 338, active: true });
+              u.p1Runq.setCursors(0, 1);
+              u.connM1G.set({ x1: 282, y1: 150, x2: 282, y2: 98, opacity: 0 });
+              u.connM1G0.set({ ...Geom.connect({ type: "tri", x: 282, y: 178 }, { type: "g0", x: 172, y: 338 }), opacity: 1, dashed: false, width: 3.1, label: "mcall → G0" });
+              u.connG0Fetch.set({ x1: 198, y1: 338, x2: 678, y2: 162, opacity: 0 });
+              u.connGogo.set({ x1: 198, y1: 320, x2: 282, y2: 98, opacity: 0 });
+              u.stackBadge.set({ x: 472, y: 338, text: "G0 系统栈激活：执行 schedule()", color: "#0f766e", bg: "#ebf5f4", opacity: 1, width: 256 });
+            }
+          },
+          {
+            title: "步骤 3：G0 调用 runqget(P1) 从本地队列取出 G2",
+            desc: "<code>schedule()</code> 在 <code>G0</code> 栈上调用 <code>runqget(P1)</code>：发现 <code>P1.runnext</code> 为空后，通过原子操作从 <code>P1.runq[0]</code> 弹出 <code>G2</code>（<code>head: 0 → 1</code>），准备加载其运行上下文。",
+            apply(u) {
+              u.G1.setState({ x: 112, y: 80, opacity: 0.3, ghost: true, tag: "已回收", tagColor: "slate", tagY: 31 });
+              u.G0.setState({ x: 172, y: 338, active: true });
+              u.G2.setState({ x: 436, y: 78, opacity: 1, highlight: true, tag: "runqget()", tagColor: "teal", tagY: -28 });
+              u.p1Runq.setCursors(1, 1);
+              u.connM1G.set({ x1: 282, y1: 150, x2: 282, y2: 98, opacity: 0 });
+              u.connM1G0.set({ ...Geom.connect({ type: "tri", x: 282, y: 178 }, { type: "g0", x: 172, y: 338 }), opacity: 1, dashed: false, width: 3, label: "schedule()" });
+              const eFetch = Geom.connect({ type: "g0", x: 172, y: 338 }, { type: "rect", x: 726, y: 215, w: 96, h: 216 });
+              u.connG0Fetch.set({ ...eFetch, curve: 75, opacity: 1, label: "runqget(P1)" });
+              u.connGogo.set({ x1: 198, y1: 320, x2: 282, y2: 98, opacity: 0 });
+              u.stackBadge.set({ x: 472, y: 338, text: "已取出 G2，准备恢复 gobuf 现场", color: "#0f766e", bg: "#ebf5f4", opacity: 1, width: 256 });
+            }
+          },
+          {
+            title: "步骤 4：G0 通过 gogo() 恢复 G2 的 gobuf，M1 切离 G0 执行 G2",
+            desc: "<code>execute(G2)</code> 最终调用汇编 <code>gogo(&G2.sched)</code>，将 <code>G2</code> 的 <code>gobuf</code>（PC/SP 寄存器）载入 CPU；<code>M1</code> 切离 <code>G0</code> 直接开始执行 <code>G2</code>。整个切换在用户态完成，内核线程 <code>M1</code> 完美复用！",
+            apply(u) {
+              u.G1.setState({ x: 112, y: 80, opacity: 0.25, ghost: true, tag: "已回收", tagColor: "slate", tagY: 31 });
+              u.G0.setState({ x: 172, y: 338, active: false });
+              u.G2.setState({ x: 282, y: 78, opacity: 1, highlight: true, tag: "running (gobuf 恢复)", tagColor: "green", tagY: -28 });
+              u.p1Runq.setCursors(1, 1);
+              u.connM1G.set({ ...Geom.connect({ type: "tri", x: 282, y: 178 }, { type: "circle", x: 282, y: 78, r: 19 }), opacity: 1 });
+              u.connM1G0.set({ ...Geom.connect({ type: "tri", x: 282, y: 178 }, { type: "g0", x: 172, y: 338 }), opacity: 0.35, dashed: true, width: 1.8, label: "" });
+              u.connG0Fetch.set({ x1: 198, y1: 338, x2: 678, y2: 162, opacity: 0 });
+              const eGogo = Geom.connect({ type: "g0", x: 172, y: 338 }, { type: "circle", x: 282, y: 78, r: 19 });
+              u.connGogo.set({ ...eGogo, curve: -62, opacity: 1, label: "gogo(&G2.sched)" });
+              u.stackBadge.set({ x: 472, y: 338, text: "M1 复用完成：当前执行用户栈 G2 ✓", color: "#065f46", bg: "#edf6ef", opacity: 1, width: 268 });
+            }
+          }
+        ]
+      },
+
+      /* ----------------------------------------------------------------------
+         场景 3：P 本地队列溢出与环形数组指针迁移
+         ---------------------------------------------------------------------- */
+      {
+        id: "scene-3",
+        num: "03",
+        title: "P 本地队列溢出与环形数组指针迁移",
+        takeaway: "本地队列满时触发 runqputslow() 将队头一半与新 G 串成链表一次性挂入全局队列；只推进 head 游标而不清空旧槽位，后续新指针直接安全覆写。",
+        viewBox: "0 0 880 430",
+        build(svg, defs) {
+          const { marker, sketch } = defs;
+          const bgLayer = el("g", {}, svg);
+          const lineLayer = el("g", {}, svg);
+          const nodeLayer = el("g", {}, svg);
+          const fxLayer = el("g", {}, svg);
+
+          const grqZone = Primitives.createZone(bgLayer, {
+            x: 562, y: 112, w: 294, h: 130,
+            title: "全局队列 Global Run Queue (链表)",
+            color: "#8b5cf6", fill: "rgba(139,92,246,0.05)", dashed: true, sketchUrl: sketch
+          });
+
+          Primitives.createZone(bgLayer, {
+            x: 562, y: 274, w: 294, h: 114,
+            title: "笔记：指针副本 vs 堆实体",
+            color: "#0f766e", fill: "rgba(15,118,110,0.035)", dashed: false, sketchUrl: sketch
+          });
+          const heapLine1 = el("text", { x: 576, y: 312, "font-size": 11.5, fill: "var(--svg-text-sub)" }, bgLayer);
+          heapLine1.textContent = "• runq 仅存储 *g 指针，不拷贝 G 结构体";
+          const heapLine2 = el("text", { x: 576, y: 336, "font-size": 11.5, fill: "var(--svg-text-sub)" }, bgLayer);
+          heapLine2.textContent = "• head 推进后，旧槽位逻辑失效无需清零";
+          const heapLine3 = el("text", { x: 576, y: 360, "font-size": 11.5, "font-weight": 600, fill: "#0f766e" }, bgLayer);
+          heapLine3.textContent = "• 覆写 [0] 槽位不影响全局队列里的 G5 实体";
+
+          const p1Runq = Primitives.createRunQ(bgLayer, {
+            x: 392, y: 112, title: "P1.runq (定长 4 格)", width: 132, slotH: 52, markerFn: marker, sketchUrl: sketch
+          });
+
+          const connM1P1 = Primitives.createConnector(lineLayer, { color: "#3b82f6", width: 2.3, sketchUrl: sketch });
+          const connM1G2 = Primitives.createConnector(lineLayer, { color: "#10b981", width: 2.1, sketchUrl: sketch });
+          const connP1Q = Primitives.createConnector(lineLayer, { color: "#d97706", width: 1.7, dashed: true, sketchUrl: sketch });
+          const connOverflow = Primitives.createConnector(lineLayer, { color: "#ef4444", width: 2.1, dashed: true, markerEnd: marker("red"), flow: true, sketchUrl: sketch });
+          const connLink1 = Primitives.createConnector(lineLayer, { color: "#8b5cf6", width: 2.1, markerEnd: marker("purple"), sketchUrl: sketch });
+          const connLink2 = Primitives.createConnector(lineLayer, { color: "#8b5cf6", width: 2.1, markerEnd: marker("purple"), sketchUrl: sketch });
+          const connWrite0 = Primitives.createConnector(lineLayer, { color: "#10b981", width: 2.1, dashed: true, markerEnd: marker("green"), flow: true, sketchUrl: sketch });
+
+          const M1 = Primitives.createM(nodeLayer, "M1", 72, 200, sketch);
+          const P1 = Primitives.createP(nodeLayer, "P1", 184, 200, "_Prunning", sketch);
+          const G2 = Primitives.createG(nodeLayer, "G2", 72, 112, 19, sketch);
+
+          const G5 = Primitives.createG(nodeLayer, "G5", p1Runq.slotCenters[0].x, p1Runq.slotCenters[0].y, 18, sketch);
+          const G6 = Primitives.createG(nodeLayer, "G6", p1Runq.slotCenters[1].x, p1Runq.slotCenters[1].y, 18, sketch);
+          const G7 = Primitives.createG(nodeLayer, "G7", p1Runq.slotCenters[2].x, p1Runq.slotCenters[2].y, 18, sketch);
+          const G8 = Primitives.createG(nodeLayer, "G8", p1Runq.slotCenters[3].x, p1Runq.slotCenters[3].y, 18, sketch);
+          const G9 = Primitives.createG(nodeLayer, "G9", 184, 62, 18, sketch);
+          const G10 = Primitives.createG(nodeLayer, "G10", 184, 62, 18, sketch);
+
+          const statusPill = Primitives.createCallout(fxLayer, {
+            x: 392, y: 56, text: "", color: "#b91c1c", bg: "#fbeeed", maxW: 256, sketchUrl: sketch
+          });
+          const grqEmptyText = el("text", {
+            x: 709, y: 186, "text-anchor": "middle",
+            "font-size": 12, "font-family": "var(--font-mono)", fill: "var(--svg-text-muted)"
+          }, bgLayer);
+          grqEmptyText.textContent = "(空链表)";
+
+          connM1P1.set({ ...Geom.connect({ type: "tri", x: 72, y: 200 }, { type: "rect", x: 184, y: 200, w: 84, h: 52 }), opacity: 1 });
+          connM1G2.set({ ...Geom.connect({ type: "tri", x: 72, y: 200 }, { type: "circle", x: 72, y: 112, r: 19 }), opacity: 1 });
+          connP1Q.set({ ...Geom.connect({ type: "rect", x: 184, y: 200, w: 84, h: 52 }, { type: "rect", x: 392, y: 238, w: 132, h: 250 }), opacity: 0.7 });
+
+          return {
+            M1, P1, G2, G5, G6, G7, G8, G9, G10, p1Runq, grqZone, grqEmptyText,
+            connOverflow, connLink1, connLink2, connWrite0, statusPill
+          };
+        },
+        steps: [
+          {
+            title: "初始状态：P1 本地环形队列已满（head=0, tail=4），全局队列为空",
+            desc: "<code>M1 + P1</code> 正在执行 <code>G2</code>。<code>P1.runq</code> 4 个定长槽位已全部占满：<code>[0]:&amp;G5, [1]:&amp;G6, [2]:&amp;G7, [3]:&amp;G8</code>，此时 <code>head = 0, tail = 4</code>（<code>tail - head == 4</code>），右侧全局队列为空。",
+            apply(u) {
+              const s = u.p1Runq.slotCenters;
+              u.G5.setState({ x: s[0].x, y: s[0].y, opacity: 1 });
+              u.G6.setState({ x: s[1].x, y: s[1].y, opacity: 1 });
+              u.G7.setState({ x: s[2].x, y: s[2].y, opacity: 1 });
+              u.G8.setState({ x: s[3].x, y: s[3].y, opacity: 1 });
+              u.G9.setState({ x: 184, y: 62, opacity: 0 });
+              u.G10.setState({ x: 184, y: 62, opacity: 0 });
+              u.p1Runq.setCursors(0, 4, { alert: false });
+              for (let i = 0; i < 4; i++) u.p1Runq.setSlotVisual(i, {});
+              u.grqEmptyText.setAttribute("opacity", "1");
+              u.grqZone.setHighlight(false);
+              u.connOverflow.set({ x1: 202, y1: 62, x2: 320, y2: 140, opacity: 0 });
+              u.connLink1.set({ x1: 632, y1: 182, x2: 686, y2: 182, opacity: 0 });
+              u.connLink2.set({ x1: 728, y1: 182, x2: 782, y2: 182, opacity: 0 });
+              u.connWrite0.set({ x1: 202, y1: 62, x2: 330, y2: 165, opacity: 0 });
+              u.statusPill.set({ x: 392, y: 56, text: "tail - head = 4 - 0 = 4（已满）", color: "#92400e", bg: "#fbf5e6", opacity: 1, width: 236 });
+            }
+          },
+          {
+            title: "步骤 1：G2 创建 G9，入队发现溢出触发 runqputslow()",
+            desc: "<code>G2</code> 创建新协程 <code>G9</code>，尝试将其写入 <code>P1.runq</code> 时检测到 <code>tail - head == 4</code>（环形数组溢出），无法无锁入队，立即触发慢路径 <code>runqputslow()</code>。",
+            apply(u) {
+              const s = u.p1Runq.slotCenters;
+              u.G5.setState({ x: s[0].x, y: s[0].y, opacity: 1 });
+              u.G6.setState({ x: s[1].x, y: s[1].y, opacity: 1 });
+              u.G7.setState({ x: s[2].x, y: s[2].y, opacity: 1 });
+              u.G8.setState({ x: s[3].x, y: s[3].y, opacity: 1 });
+              u.G9.setState({ x: 184, y: 62, opacity: 1, highlight: true, tag: "新创建", tagColor: "red", tagY: -26 });
+              u.G10.setState({ x: 184, y: 62, opacity: 0 });
+              u.p1Runq.setCursors(0, 4, { alert: true });
+              for (let i = 0; i < 4; i++) u.p1Runq.setSlotVisual(i, {});
+              u.grqEmptyText.setAttribute("opacity", "1");
+              u.grqZone.setHighlight(false);
+              const c = Geom.connect({ type: "circle", x: 184, y: 62, r: 18 }, { type: "rect", x: 392, y: 170, w: 132, h: 110 });
+              u.connOverflow.set({ ...c, curve: -18, opacity: 1, label: "溢出! runqputslow()" });
+              u.connLink1.set({ x1: 632, y1: 182, x2: 686, y2: 182, opacity: 0 });
+              u.connLink2.set({ x1: 728, y1: 182, x2: 782, y2: 182, opacity: 0 });
+              u.connWrite0.set({ x1: 202, y1: 62, x2: 330, y2: 165, opacity: 0 });
+              u.statusPill.set({ x: 392, y: 56, text: "队列溢出！触发 runqputslow()", color: "#b91c1c", bg: "#fbeeed", opacity: 1, width: 236 });
+            }
+          },
+          {
+            title: "步骤 2：拷贝前一半指针与 G9 串成链表，一次性加锁挂入全局队列",
+            desc: "<code>runqputslow()</code> 拷贝队头前一半（<code>&amp;G5, &amp;G6</code>）加上新创建的 <code>&amp;G9</code>，在锁外修改 <code>g.schedlink</code> 串成单向链表 <code>G5 → G6 → G9</code>，随后仅加一次全局锁整批挂入紫色<strong>全局队列</strong>，大幅降低锁竞争。",
+            apply(u) {
+              const s = u.p1Runq.slotCenters;
+              u.G5.setState({ x: 616, y: 182, opacity: 1, highlight: true });
+              u.G6.setState({ x: 708, y: 182, opacity: 1, highlight: true });
+              u.G9.setState({ x: 800, y: 182, opacity: 1, highlight: true, tag: "schedlink", tagColor: "purple", tagY: 31 });
+              u.G7.setState({ x: s[2].x, y: s[2].y, opacity: 1 });
+              u.G8.setState({ x: s[3].x, y: s[3].y, opacity: 1 });
+              u.G10.setState({ x: 184, y: 62, opacity: 0 });
+              u.p1Runq.setCursors(0, 4, { alert: false });
+              u.p1Runq.setSlotVisual(0, { ghostText: "&G5 (已拷走)", dimmed: true });
+              u.p1Runq.setSlotVisual(1, { ghostText: "&G6 (已拷走)", dimmed: true });
+              u.p1Runq.setSlotVisual(2, {});
+              u.p1Runq.setSlotVisual(3, {});
+              u.grqEmptyText.setAttribute("opacity", "0");
+              u.grqZone.setHighlight(true);
+              u.connOverflow.set({ x1: 202, y1: 62, x2: 320, y2: 140, opacity: 0 });
+              u.connLink1.set({ ...Geom.connect({ type: "circle", x: 616, y: 182, r: 18 }, { type: "circle", x: 708, y: 182, r: 18 }), opacity: 1 });
+              u.connLink2.set({ ...Geom.connect({ type: "circle", x: 708, y: 182, r: 18 }, { type: "circle", x: 800, y: 182, r: 18 }), opacity: 1 });
+              u.connWrite0.set({ x1: 202, y1: 62, x2: 330, y2: 165, opacity: 0 });
+              u.statusPill.set({ x: 709, y: 80, text: "批量锁入全局队列：G5 → G6 → G9", color: "#6d28d9", bg: "#f4f0fa", opacity: 1, width: 256 });
+            }
+          },
+          {
+            title: "步骤 3：head 游标从 0 推进至 2，旧槽位残留指针无需清零",
+            desc: "原子 CAS 将 <code>P1.runq</code> 的 <code>head</code> 游标从 <code>0</code> 推进到 <code>2</code>（此时有效元素为 <code>[2], [3]</code>）。注意观察：格子 <code>[0]</code> 和 <code>[1]</code> 中仍残留着灰色的旧指针副本 <code>&amp;G5 / &amp;G6</code>，但在逻辑上它们已经空闲，无需额外清零。",
+            apply(u) {
+              const s = u.p1Runq.slotCenters;
+              u.G5.setState({ x: 616, y: 182, opacity: 1, highlight: false });
+              u.G6.setState({ x: 708, y: 182, opacity: 1, highlight: false });
+              u.G9.setState({ x: 800, y: 182, opacity: 1, highlight: false });
+              u.G7.setState({ x: s[2].x, y: s[2].y, opacity: 1 });
+              u.G8.setState({ x: s[3].x, y: s[3].y, opacity: 1 });
+              u.G10.setState({ x: 184, y: 62, opacity: 0 });
+              u.p1Runq.setCursors(2, 4, { alert: false });
+              u.p1Runq.setSlotVisual(0, { ghostText: "残余 &G5", dimmed: true });
+              u.p1Runq.setSlotVisual(1, { ghostText: "残余 &G6", dimmed: true });
+              u.p1Runq.setSlotVisual(2, {});
+              u.p1Runq.setSlotVisual(3, {});
+              u.grqEmptyText.setAttribute("opacity", "0");
+              u.grqZone.setHighlight(false);
+              u.connOverflow.set({ x1: 202, y1: 62, x2: 320, y2: 140, opacity: 0 });
+              u.connLink1.set({ ...Geom.connect({ type: "circle", x: 616, y: 182, r: 18 }, { type: "circle", x: 708, y: 182, r: 18 }), opacity: 1 });
+              u.connLink2.set({ ...Geom.connect({ type: "circle", x: 708, y: 182, r: 18 }, { type: "circle", x: 800, y: 182, r: 18 }), opacity: 1 });
+              u.connWrite0.set({ x1: 202, y1: 62, x2: 330, y2: 165, opacity: 0 });
+              u.statusPill.set({ x: 392, y: 56, text: "head: 0 → 2（[0][1] 残余旧指针，逻辑已空）", color: "#0f766e", bg: "#ebf5f4", opacity: 1, width: 296 });
+            }
+          },
+          {
+            title: "步骤 4：创建 G10 写入 tail % 4 = 0 号槽位，安全覆写旧指针 &G5",
+            desc: "随后 <code>G2</code> 创建新协程 <code>G10</code>，写入槽位 <code>tail % 4 = 4 % 4 = 0</code>，直接覆写 <code>[0]</code> 号格子里残留的旧指针 <code>&amp;G5</code>，<code>tail</code> 推进至 <code>5</code>；与此同时，右侧全局队列引用的堆上 <code>G5</code> 实体丝毫不受影响！",
+            apply(u) {
+              const s = u.p1Runq.slotCenters;
+              u.G5.setState({ x: 616, y: 182, opacity: 1, highlight: true, tag: "堆上实体完好", tagColor: "green", tagY: 31 });
+              u.G6.setState({ x: 708, y: 182, opacity: 1 });
+              u.G9.setState({ x: 800, y: 182, opacity: 1 });
+              u.G7.setState({ x: s[2].x, y: s[2].y, opacity: 1 });
+              u.G8.setState({ x: s[3].x, y: s[3].y, opacity: 1 });
+              u.G10.setState({ x: s[0].x, y: s[0].y, opacity: 1, highlight: true });
+              u.p1Runq.setCursors(2, 5, { alert: false });
+              u.p1Runq.setSlotVisual(0, { ghostText: "", dimmed: false });
+              u.p1Runq.setSlotVisual(1, { ghostText: "残余 &G6", dimmed: true });
+              u.p1Runq.setSlotVisual(2, {});
+              u.p1Runq.setSlotVisual(3, {});
+              u.grqEmptyText.setAttribute("opacity", "0");
+              u.connOverflow.set({ x1: 202, y1: 62, x2: 320, y2: 140, opacity: 0 });
+              u.connLink1.set({ ...Geom.connect({ type: "circle", x: 616, y: 182, r: 18 }, { type: "circle", x: 708, y: 182, r: 18 }), opacity: 1 });
+              u.connLink2.set({ ...Geom.connect({ type: "circle", x: 708, y: 182, r: 18 }, { type: "circle", x: 800, y: 182, r: 18 }), opacity: 1 });
+              u.connWrite0.set({ x1: 202, y1: 62, x2: 330, y2: 165, opacity: 0 });
+              u.statusPill.set({ x: 392, y: 56, text: "G10 写入 tail%4 = 0 覆写 &G5（tail=5）", color: "#065f46", bg: "#edf6ef", opacity: 1, width: 296 });
+            }
+          }
+        ]
+      },
+
+      /* ----------------------------------------------------------------------
+         场景 4：自旋线程、全局队列捞取与工作窃取（Work Stealing）
+         ---------------------------------------------------------------------- */
+      {
+        id: "scene-4",
+        num: "04",
+        title: "自旋线程、全局队列捞取与工作窃取（Work Stealing）",
+        takeaway: "空闲自旋线程执行 findrunnable() 时，按公平配额从全局队列捞取任务；若全局队列亦为空，则随机扫描并从繁忙 P 偷取一半协程实现负载均衡。",
+        viewBox: "0 0 880 430",
+        build(svg, defs) {
+          const { marker, sketch } = defs;
+          const bgLayer = el("g", {}, svg);
+          const lineLayer = el("g", {}, svg);
+          const nodeLayer = el("g", {}, svg);
+          const fxLayer = el("g", {}, svg);
+
+          const grqZone = Primitives.createZone(bgLayer, {
+            x: 184, y: 18, w: 512, h: 102,
+            title: "全局队列 Global Run Queue (sched.runq)",
+            color: "#8b5cf6", fill: "rgba(139,92,246,0.05)", dashed: true, sketchUrl: sketch
+          });
+
+          const formulaPill = Primitives.createCallout(fxLayer, {
+            x: 440, y: 142,
+            text: "n = min(len(GQ)/GOMAXPROCS + 1, len(GQ)/2, max)",
+            color: "#6d28d9", bg: "#f4f0fa", maxW: 396, sketchUrl: sketch
+          });
+
+          const p2Runq = Primitives.createRunQ(bgLayer, {
+            x: 320, y: 196, title: "P2.runq", width: 88, slotH: 40, markerFn: marker, sketchUrl: sketch
+          });
+          const p1Runq = Primitives.createRunQ(bgLayer, {
+            x: 560, y: 196, title: "P1.runq", width: 88, slotH: 40, markerFn: marker, sketchUrl: sketch
+          });
+
+          const connM2P2 = Primitives.createConnector(lineLayer, { color: "#3b82f6", width: 2.3, sketchUrl: sketch });
+          const connM1P1 = Primitives.createConnector(lineLayer, { color: "#3b82f6", width: 2.3, sketchUrl: sketch });
+          const connM2Run = Primitives.createConnector(lineLayer, { color: "#10b981", width: 2.1, sketchUrl: sketch });
+          const connGq1 = Primitives.createConnector(lineLayer, { color: "#8b5cf6", width: 2.1, markerEnd: marker("purple"), sketchUrl: sketch });
+          const connGq2 = Primitives.createConnector(lineLayer, { color: "#8b5cf6", width: 2.1, markerEnd: marker("purple"), sketchUrl: sketch });
+          const connLookup = Primitives.createConnector(lineLayer, { color: "#8b5cf6", width: 2.1, dashed: true, markerEnd: marker("purple"), flow: true, sketchUrl: sketch });
+          const connSteal = Primitives.createConnector(lineLayer, { color: "#ef4444", width: 2.2, dashed: true, markerEnd: marker("red"), flow: true, sketchUrl: sketch });
+
+          const M2 = Primitives.createM(nodeLayer, "M2", 82, 266, sketch);
+          const P2 = Primitives.createP(nodeLayer, "P2", 198, 266, "_Prunning", sketch);
+          const P1 = Primitives.createP(nodeLayer, "P1", 690, 266, "_Prunning", sketch);
+          const M1 = Primitives.createM(nodeLayer, "M1", 806, 266, sketch);
+
+          const G3 = Primitives.createG(nodeLayer, "G3", 312, 78, 18, sketch);
+          const G4 = Primitives.createG(nodeLayer, "G4", 440, 78, 18, sketch);
+          const G5 = Primitives.createG(nodeLayer, "G5", 568, 78, 18, sketch);
+
+          const G6 = Primitives.createG(nodeLayer, "G6", p1Runq.slotCenters[0].x, p1Runq.slotCenters[0].y, 17, sketch);
+          const G7 = Primitives.createG(nodeLayer, "G7", p1Runq.slotCenters[1].x, p1Runq.slotCenters[1].y, 17, sketch);
+          const G8 = Primitives.createG(nodeLayer, "G8", p1Runq.slotCenters[2].x, p1Runq.slotCenters[2].y, 17, sketch);
+          const G9 = Primitives.createG(nodeLayer, "G9", p1Runq.slotCenters[3].x, p1Runq.slotCenters[3].y, 17, sketch);
+
+          const grqEmptyText = el("text", {
+            x: 440, y: 82, "text-anchor": "middle",
+            "font-size": 12, "font-family": "var(--font-mono)", fill: "var(--svg-text-muted)", opacity: 0
+          }, bgLayer);
+          grqEmptyText.textContent = "(全局队列已清空)";
+
+          connM2P2.set({ ...Geom.connect({ type: "tri", x: 82, y: 266 }, { type: "rect", x: 198, y: 266, w: 84, h: 52 }), opacity: 1 });
+          connM1P1.set({ ...Geom.connect({ type: "tri", x: 806, y: 266 }, { type: "rect", x: 690, y: 266, w: 84, h: 52 }), opacity: 1 });
+
+          return {
+            M2, P2, M1, P1, G3, G4, G5, G6, G7, G8, G9,
+            p2Runq, p1Runq, grqZone, grqEmptyText, formulaPill,
+            connM2Run, connGq1, connGq2, connLookup, connSteal
+          };
+        },
+        steps: [
+          {
+            title: "初始状态：自旋 M2 绑定空队列 P2，全局队列与 P1 均有积压任务",
+            desc: "<code>M2</code>（处于 <code>Spinning</code> 自旋态）绑定了本地队列为空的 <code>P2</code>；上方紫色全局队列存有链表 <code>G3 → G4 → G5</code>；右侧繁忙的 <code>P1</code> 本地队列满载 <code>[G6, G7, G8, G9]</code>。",
+            apply(u) {
+              const s1 = u.p1Runq.slotCenters;
+              u.M2.setState({ x: 82, y: 266, mode: "spinning" });
+              u.P2.setState({ x: 198, y: 266, status: "_Prunning" });
+              u.G3.setState({ x: 312, y: 78, opacity: 1 });
+              u.G4.setState({ x: 440, y: 78, opacity: 1 });
+              u.G5.setState({ x: 568, y: 78, opacity: 1 });
+              u.G6.setState({ x: s1[0].x, y: s1[0].y, opacity: 1 });
+              u.G7.setState({ x: s1[1].x, y: s1[1].y, opacity: 1 });
+              u.G8.setState({ x: s1[2].x, y: s1[2].y, opacity: 1 });
+              u.G9.setState({ x: s1[3].x, y: s1[3].y, opacity: 1 });
+              u.p2Runq.setCursors(0, 0);
+              u.p1Runq.setCursors(0, 4);
+              u.grqEmptyText.setAttribute("opacity", "0");
+              u.grqZone.setHighlight(false);
+              u.formulaPill.set({ x: 440, y: 142, opacity: 0 });
+              u.connM2Run.set({ x1: 82, y1: 238, x2: 82, y2: 200, opacity: 0 });
+              u.connGq1.set({ ...Geom.connect({ type: "circle", x: 312, y: 78, r: 18 }, { type: "circle", x: 440, y: 78, r: 18 }), opacity: 1 });
+              u.connGq2.set({ ...Geom.connect({ type: "circle", x: 440, y: 78, r: 18 }, { type: "circle", x: 568, y: 78, r: 18 }), opacity: 1 });
+              u.connLookup.set({ x1: 82, y1: 236, x2: 220, y2: 118, opacity: 0 });
+              u.connSteal.set({ x1: 112, y1: 266, x2: 510, y2: 266, opacity: 0 });
+            }
+          },
+          {
+            title: "步骤 1：M2 执行 findrunnable()，本地队列为空转向检查全局队列",
+            desc: "自旋的 <code>M2</code> 进入 <code>findrunnable()</code> 查找任务：先检查 <code>P2.runnext</code> 与 <code>P2.runq</code> 均为空，随即调用 <code>globrunqget()</code> 转向检查<strong>全局队列</strong>。",
+            apply(u) {
+              const s1 = u.p1Runq.slotCenters;
+              u.M2.setState({ x: 82, y: 266, mode: "spinning" });
+              u.G3.setState({ x: 312, y: 78, opacity: 1, highlight: true });
+              u.G4.setState({ x: 440, y: 78, opacity: 1 });
+              u.G5.setState({ x: 568, y: 78, opacity: 1 });
+              u.G6.setState({ x: s1[0].x, y: s1[0].y, opacity: 1 });
+              u.G7.setState({ x: s1[1].x, y: s1[1].y, opacity: 1 });
+              u.p2Runq.setCursors(0, 0);
+              u.p1Runq.setCursors(0, 4);
+              u.grqEmptyText.setAttribute("opacity", "0");
+              u.grqZone.setHighlight(true);
+              u.formulaPill.set({ x: 440, y: 142, opacity: 0 });
+              u.connM2Run.set({ x1: 82, y1: 238, x2: 82, y2: 200, opacity: 0 });
+              u.connGq1.set({ ...Geom.connect({ type: "circle", x: 312, y: 78, r: 18 }, { type: "circle", x: 440, y: 78, r: 18 }), opacity: 1 });
+              u.connGq2.set({ ...Geom.connect({ type: "circle", x: 440, y: 78, r: 18 }, { type: "circle", x: 568, y: 78, r: 18 }), opacity: 1 });
+              const cLook = Geom.connect({ type: "tri", x: 82, y: 266 }, { type: "rect", x: 440, y: 69, w: 512, h: 102 });
+              u.connLookup.set({ ...cLook, curve: -24, opacity: 1, label: "findrunnable() → globrunqget()" });
+              u.connSteal.set({ x1: 112, y1: 266, x2: 510, y2: 266, opacity: 0 });
+            }
+          },
+          {
+            title: "步骤 2：按 Go 1.18+ 负载均衡公式从全局队列定量捞取 G3",
+            desc: "为防止单个 P 一次性吞空全局队列导致负载不均，<code>globrunqget()</code> 按公式 <code>n = min(len(GQ)/GOMAXPROCS + 1, len(GQ)/2, max)</code> 计算配额，捞取 <code>G3</code> 交由 <code>M2</code> 运行（保留 <code>G4 → G5</code> 给其他 P）。",
+            apply(u) {
+              const s1 = u.p1Runq.slotCenters;
+              u.M2.setState({ x: 82, y: 266, mode: "normal" });
+              u.G3.setState({ x: 82, y: 180, opacity: 1, highlight: true, tag: "捞取执行", tagColor: "purple", tagY: -26 });
+              u.G4.setState({ x: 380, y: 78, opacity: 1 });
+              u.G5.setState({ x: 500, y: 78, opacity: 1 });
+              u.G6.setState({ x: s1[0].x, y: s1[0].y, opacity: 1 });
+              u.G7.setState({ x: s1[1].x, y: s1[1].y, opacity: 1 });
+              u.p2Runq.setCursors(0, 0);
+              u.p1Runq.setCursors(0, 4);
+              u.grqEmptyText.setAttribute("opacity", "0");
+              u.grqZone.setHighlight(true);
+              u.formulaPill.set({ x: 440, y: 142, text: "n = min(len(GQ)/GOMAXPROCS + 1, len(GQ)/2, max)", color: "#6d28d9", bg: "#f4f0fa", opacity: 1 });
+              u.connM2Run.set({ ...Geom.connect({ type: "tri", x: 82, y: 266 }, { type: "circle", x: 82, y: 180, r: 18 }), opacity: 1 });
+              u.connGq1.set({ x1: 312, y1: 78, x2: 440, y2: 78, opacity: 0 });
+              u.connGq2.set({ ...Geom.connect({ type: "circle", x: 380, y: 78, r: 18 }, { type: "circle", x: 500, y: 78, r: 18 }), opacity: 1 });
+              u.connLookup.set({ x1: 82, y1: 236, x2: 220, y2: 118, opacity: 0 });
+              u.connSteal.set({ x1: 112, y1: 266, x2: 510, y2: 266, opacity: 0 });
+            }
+          },
+          {
+            title: "步骤 3：全局队列已清空，M2 再度空闲自旋发起 Work Stealing",
+            desc: "假设全局队列已被消费完毕且 <code>G3</code> 执行结束，<code>M2</code> 重新进入 <code>Spinning</code> 自旋状态，调用 <code>stealWork()</code> 以随机互质步长遍历其他 P，锁定满载的繁忙 <code>P1</code>。",
+            apply(u) {
+              const s1 = u.p1Runq.slotCenters;
+              u.M2.setState({ x: 82, y: 266, mode: "spinning" });
+              u.G3.setState({ x: 82, y: 180, opacity: 0 });
+              u.G4.setState({ x: 380, y: 78, opacity: 0 });
+              u.G5.setState({ x: 500, y: 78, opacity: 0 });
+              u.G6.setState({ x: s1[0].x, y: s1[0].y, opacity: 1, highlight: true });
+              u.G7.setState({ x: s1[1].x, y: s1[1].y, opacity: 1, highlight: true });
+              u.p2Runq.setCursors(0, 0);
+              u.p1Runq.setCursors(0, 4);
+              u.grqEmptyText.setAttribute("opacity", "1");
+              u.grqZone.setHighlight(false);
+              u.formulaPill.set({ x: 440, y: 142, opacity: 0 });
+              u.connM2Run.set({ x1: 82, y1: 238, x2: 82, y2: 200, opacity: 0 });
+              u.connGq1.set({ x1: 312, y1: 78, x2: 440, y2: 78, opacity: 0 });
+              u.connGq2.set({ x1: 380, y1: 78, x2: 500, y2: 78, opacity: 0 });
+              u.connLookup.set({ x1: 82, y1: 236, x2: 220, y2: 118, opacity: 0 });
+              const cSt = Geom.connect({ type: "tri", x: 82, y: 266 }, { type: "rect", x: 560, y: 245, w: 88, h: 100 });
+              u.connSteal.set({ ...cSt, curve: -72, opacity: 1, label: "Work Stealing: 瞄准 P1.runq" });
+            }
+          },
+          {
+            title: "步骤 4：偷取 P1 一半任务（G6, G7），关闭 Spinning 转为正常工作态",
+            desc: "<code>runqsteal()</code> 原子偷取 <code>P1.runq</code> 队头一半协程（<code>G6, G7</code>，<code>P1.head: 0 → 2</code>）：将 <code>G6</code> 直接交由 <code>M2</code> 运行，将 <code>G7</code> 放入 <code>P2.runq[0]</code>，随后调用 <code>resetspinning()</code> 关闭自旋光环，转为正常工作态。",
+            apply(u) {
+              const s2 = u.p2Runq.slotCenters;
+              const s1 = u.p1Runq.slotCenters;
+              u.M2.setState({ x: 82, y: 266, mode: "normal" });
+              u.G3.setState({ x: 82, y: 180, opacity: 0 });
+              u.G4.setState({ x: 380, y: 78, opacity: 0 });
+              u.G5.setState({ x: 500, y: 78, opacity: 0 });
+              u.G6.setState({ x: 82, y: 180, opacity: 1, highlight: true, tag: "偷取直跑", tagColor: "green", tagY: -26 });
+              u.G7.setState({ x: s2[0].x, y: s2[0].y, opacity: 1, highlight: true });
+              u.G8.setState({ x: s1[2].x, y: s1[2].y, opacity: 1 });
+              u.G9.setState({ x: s1[3].x, y: s1[3].y, opacity: 1 });
+              u.p2Runq.setCursors(0, 1);
+              u.p1Runq.setCursors(2, 4);
+              u.grqEmptyText.setAttribute("opacity", "1");
+              u.formulaPill.set({ x: 440, y: 142, text: "Work Stealing 完成：resetspinning() 关闭自旋", color: "#065f46", bg: "#edf6ef", opacity: 1, width: 320 });
+              u.connM2Run.set({ ...Geom.connect({ type: "tri", x: 82, y: 266 }, { type: "circle", x: 82, y: 180, r: 18 }), opacity: 1 });
+              u.connSteal.set({ x1: 112, y1: 266, x2: 510, y2: 266, opacity: 0 });
+            }
+          }
+        ]
+      },
+
+      /* ----------------------------------------------------------------------
+         场景 5：快速系统调用（oldp 弱绑定与零开销复用）
+         ---------------------------------------------------------------------- */
+      {
+        id: "scene-5",
+        num: "05",
+        title: "快速系统调用（oldp 弱绑定与零开销复用）",
+        takeaway: "短耗时系统调用会断开 M 与 P 的强绑定但保留 oldp 弱引用；微秒级返回后只要原 P 仍是 _Psyscall，即可经轻量 CAS 原地复活，零线程切换。",
+        viewBox: "0 0 880 400",
+        build(svg, defs) {
+          const { marker, sketch } = defs;
+          const bgLayer = el("g", {}, svg);
+          const lineLayer = el("g", {}, svg);
+          const nodeLayer = el("g", {}, svg);
+          const fxLayer = el("g", {}, svg);
+
+          Primitives.createZone(bgLayer, {
+            x: 24, y: 24, w: 416, h: 352,
+            title: "用户态区域（User Space）",
+            color: "#10b981", fill: "var(--svg-user-bg)", dashed: false, sketchUrl: sketch
+          });
+          Primitives.createZone(bgLayer, {
+            x: 468, y: 24, w: 388, h: 352,
+            title: "内核态区域（OS Kernel Space）",
+            color: "#3b82f6", fill: "var(--svg-kernel-bg)", dashed: true, sketchUrl: sketch
+          });
+
+          el("line", {
+            x1: 454, y1: 24, x2: 454, y2: 376,
+            stroke: "var(--svg-slot-border)", "stroke-width": 1.8, "stroke-dasharray": "6 5",
+            filter: sketch
+          }, bgLayer);
+
+          const connSolid = Primitives.createConnector(lineLayer, { color: "#3b82f6", width: 2.6, sketchUrl: sketch });
+          const connM1G1 = Primitives.createConnector(lineLayer, { color: "#10b981", width: 2.1, sketchUrl: sketch });
+          const connOldp = Primitives.createConnector(lineLayer, { color: "#d97706", width: 2.1, dashed: true, markerEnd: marker("amber"), sketchUrl: sketch });
+          const connCheck = Primitives.createConnector(lineLayer, { color: "#10b981", width: 2.2, dashed: true, markerEnd: marker("green"), flow: true, sketchUrl: sketch });
+
+          const P1 = Primitives.createP(nodeLayer, "P1", 286, 212, "_Prunning", sketch);
+          const M1 = Primitives.createM(nodeLayer, "M1", 136, 212, sketch);
+          const G1 = Primitives.createG(nodeLayer, "G1", 136, 120, 19, sketch);
+
+          const callout = Primitives.createCallout(fxLayer, {
+            x: 454, y: 334, text: "", color: "#065f46", bg: "#edf6ef", maxW: 360, sketchUrl: sketch
+          });
+
+          return { P1, M1, G1, connSolid, connM1G1, connOldp, connCheck, callout };
+        },
+        steps: [
+          {
+            title: "初始状态：用户态中 M1 与 P1（_Prunning）强绑定运行 G1",
+            desc: "<code>M1</code> 与 <code>P1</code> 保持实线强绑定（<code>m.p = P1, p.m = M1</code>），<code>P1</code> 状态为 <code>_Prunning</code>，正在用户态正常执行 <code>G1</code>。",
+            apply(u) {
+              u.P1.setState({ x: 286, y: 212, status: "_Prunning", highlight: false });
+              u.M1.setState({ x: 136, y: 212, mode: "normal" });
+              u.G1.setState({ x: 136, y: 120, tag: "running", tagColor: "green", tagY: -28 });
+              u.connSolid.set({ ...Geom.connect({ type: "tri", x: 136, y: 212 }, { type: "rect", x: 286, y: 212, w: 84, h: 52 }), opacity: 1 });
+              u.connM1G1.set({ ...Geom.connect({ type: "tri", x: 136, y: 212 }, { type: "circle", x: 136, y: 120, r: 19 }), opacity: 1 });
+              u.connOldp.set({ x1: 600, y1: 212, x2: 332, y2: 212, opacity: 0 });
+              u.connCheck.set({ x1: 600, y1: 190, x2: 332, y2: 190, opacity: 0 });
+              u.callout.set({ opacity: 0 });
+            }
+          },
+          {
+            title: "步骤 1：G1 发起短耗时系统调用，entersyscall() 保存现场并将 P1 置为 _Psyscall",
+            desc: "<code>G1</code> 发起短耗时系统调用（如快速 <code>read</code> 命中页缓存），进入 <code>entersyscall()</code>：先将 <code>G1</code> 的 PC/SP 现场保存至 <code>G1.sched</code>，再将 <code>P1</code> 状态置为 <code>_Psyscall</code>。",
+            apply(u) {
+              u.P1.setState({ x: 286, y: 212, status: "_Psyscall", highlight: true });
+              u.M1.setState({ x: 136, y: 212, mode: "normal" });
+              u.G1.setState({ x: 136, y: 120, highlight: true, tag: "sched 现场已保存", tagColor: "amber", tagY: -28 });
+              u.connSolid.set({ ...Geom.connect({ type: "tri", x: 136, y: 212 }, { type: "rect", x: 286, y: 212, w: 84, h: 52 }), opacity: 0.45 });
+              u.connM1G1.set({ ...Geom.connect({ type: "tri", x: 136, y: 212 }, { type: "circle", x: 136, y: 120, r: 19 }), opacity: 1 });
+              u.connOldp.set({ x1: 600, y1: 212, x2: 332, y2: 212, opacity: 0 });
+              u.connCheck.set({ x1: 600, y1: 190, x2: 332, y2: 190, opacity: 0 });
+              u.callout.set({ x: 232, y: 330, text: "entersyscall(): save(pc, sp) → P1 = _Psyscall", color: "#92400e", bg: "#fbf5e6", opacity: 1, width: 320 });
+            }
+          },
+          {
+            title: "步骤 2：断开实线保留 oldp 虚线，M1 带着 G1 进入内核态",
+            desc: "<code>M1</code> 与 <code>P1</code> 断开实线绑定（<code>m.p = nil, p.m = nil</code>），但保留一条标注 <code>oldp</code> 的虚线弱指针指向 <code>P1</code>；随后 <code>M1</code> 带着 <code>G1</code> 跨入右侧<strong>内核态区域</strong>执行系统调用。",
+            apply(u) {
+              u.P1.setState({ x: 286, y: 212, status: "_Psyscall", highlight: false });
+              u.M1.setState({ x: 668, y: 212, mode: "normal" });
+              u.G1.setState({ x: 668, y: 120, highlight: false, tag: "内核执行 syscall", tagColor: "indigo", tagY: -28 });
+              u.connSolid.set({ x1: 162, y1: 212, x2: 242, y2: 212, opacity: 0 });
+              u.connM1G1.set({ ...Geom.connect({ type: "tri", x: 668, y: 212 }, { type: "circle", x: 668, y: 120, r: 19 }), opacity: 1 });
+              const cOld = Geom.connect({ type: "tri", x: 668, y: 212 }, { type: "rect", x: 286, y: 212, w: 84, h: 52 });
+              u.connOldp.set({ ...cOld, opacity: 1, label: "m.oldp (弱绑定)" });
+              u.connCheck.set({ x1: 600, y1: 190, x2: 332, y2: 190, opacity: 0 });
+              u.callout.set({ x: 662, y: 330, text: "M1 陷入内核态，P1 留在用户态保持 _Psyscall", color: "#24576b", bg: "#eef4f7", opacity: 1, width: 326 });
+            }
+          },
+          {
+            title: "步骤 3：微秒级快速返回，exitsyscall() 沿 oldp 检查发现 P1 仍为 _Psyscall",
+            desc: "仅耗时几微秒系统调用便返回，<code>M1</code> 执行 <code>exitsyscall()</code> → <code>exitsyscallfast()</code>，顺着 <code>oldp</code> 虚线探测发现原 <code>P1</code> 依然处于 <code>_Psyscall</code>，尚未被 <code>sysmon</code> 剥离。",
+            apply(u) {
+              u.P1.setState({ x: 286, y: 212, status: "_Psyscall", highlight: true });
+              u.M1.setState({ x: 562, y: 212, mode: "normal" });
+              u.G1.setState({ x: 562, y: 120, highlight: true, tag: "syscall 返回 (~3µs)", tagColor: "green", tagY: -28 });
+              u.connSolid.set({ x1: 162, y1: 212, x2: 242, y2: 212, opacity: 0 });
+              u.connM1G1.set({ ...Geom.connect({ type: "tri", x: 562, y: 212 }, { type: "circle", x: 562, y: 120, r: 19 }), opacity: 1 });
+              const cOld = Geom.connect({ type: "tri", x: 562, y: 212 }, { type: "rect", x: 286, y: 212, w: 84, h: 52 });
+              u.connOldp.set({ ...cOld, opacity: 0.45, label: "" });
+              u.connCheck.set({ ...cOld, curve: -42, opacity: 1, label: "exitsyscall(): oldp == _Psyscall ✓" });
+              u.callout.set({ x: 454, y: 330, text: "P1 未被抢走！准备执行轻量级 CAS 恢复绑定", color: "#065f46", bg: "#edf6ef", opacity: 1, width: 344 });
+            }
+          },
+          {
+            title: "步骤 4：轻量 CAS 瞬间恢复强绑定（_Prunning），全程零线程切换",
+            desc: "通过一次无锁 CAS 操作（<code>cas(&amp;P1.status, _Psyscall, _Prunning)</code>）瞬间恢复 <code>M1</code> 与 <code>P1</code> 的实线强绑定，<code>M1</code> 立即在用户态继续执行 <code>G1</code>，全程零上下文切换与线程唤醒开销！",
+            apply(u) {
+              u.P1.setState({ x: 286, y: 212, status: "_Prunning", highlight: true });
+              u.M1.setState({ x: 136, y: 212, mode: "normal" });
+              u.G1.setState({ x: 136, y: 120, highlight: true, tag: "无缝继续执行", tagColor: "green", tagY: -28 });
+              u.connSolid.set({ ...Geom.connect({ type: "tri", x: 136, y: 212 }, { type: "rect", x: 286, y: 212, w: 84, h: 52 }), opacity: 1, label: "CAS 恢复 ✓" });
+              u.connM1G1.set({ ...Geom.connect({ type: "tri", x: 136, y: 212 }, { type: "circle", x: 136, y: 120, r: 19 }), opacity: 1 });
+              u.connOldp.set({ x1: 600, y1: 212, x2: 332, y2: 212, opacity: 0 });
+              u.connCheck.set({ x1: 600, y1: 190, x2: 332, y2: 190, opacity: 0 });
+              u.callout.set({ x: 232, y: 330, text: "Fast Path 成功：原 M1 + P1 零开销复用！", color: "#065f46", bg: "#edf6ef", opacity: 1, width: 320 });
+            }
+          }
+        ]
+      },
+
+      /* ----------------------------------------------------------------------
+         场景 6：慢速阻塞系统调用（sysmon 剥离与 Hand-off 交接）
+         ---------------------------------------------------------------------- */
+      {
+        id: "scene-6",
+        num: "06",
+        title: "慢速阻塞系统调用（sysmon 剥离与 Hand-off 交接）",
+        takeaway: "sysmon 巡检发现 _Psyscall 超时后强行剥离 P1，通过 handoffp() 跳过已有主的自旋 M3 而唤醒休眠 M2 接管队列；原 M1 返回后将 G1 放入全局队列并自行休眠。",
+        viewBox: "0 0 880 435",
+        build(svg, defs) {
+          const { marker, sketch } = defs;
+          const bgLayer = el("g", {}, svg);
+          const lineLayer = el("g", {}, svg);
+          const nodeLayer = el("g", {}, svg);
+          const fxLayer = el("g", {}, svg);
+
+          Primitives.createZone(bgLayer, {
+            x: 18, y: 16, w: 168, h: 182,
+            title: "内核态（磁盘 I/O）",
+            color: "#3b82f6", fill: "var(--svg-kernel-bg)", dashed: true, sketchUrl: sketch
+          });
+
+          Primitives.createZone(bgLayer, {
+            x: 18, y: 304, w: 324, h: 112,
+            title: "休眠 M 队列（sched.midle）",
+            color: "#64748b", fill: "rgba(100,116,139,0.05)", dashed: true, sketchUrl: sketch
+          });
+
+          const grqZone = Primitives.createZone(bgLayer, {
+            x: 374, y: 304, w: 488, h: 112,
+            title: "全局队列 Global Run Queue (sched.runq)",
+            color: "#8b5cf6", fill: "rgba(139,92,246,0.05)", dashed: true, sketchUrl: sketch
+          });
+
+          const p1Runq = Primitives.createRunQ(bgLayer, {
+            x: 492, y: 42, title: "P1.runq", width: 82, slotH: 38, compact: true, markerFn: marker, sketchUrl: sketch
+          });
+
+          const connOldp = Primitives.createConnector(lineLayer, { color: "#d97706", width: 1.9, dashed: true, markerEnd: marker("amber"), sketchUrl: sketch });
+          const connM1G1 = Primitives.createConnector(lineLayer, { color: "#10b981", width: 2, sketchUrl: sketch });
+          const connM1G0 = Primitives.createConnector(lineLayer, { color: "#0f766e", width: 2.2, sketchUrl: sketch });
+          const connSysmon = Primitives.createConnector(lineLayer, { color: "#ef4444", width: 2.2, dashed: true, markerEnd: marker("red"), flow: true, sketchUrl: sketch });
+          const connM2P1 = Primitives.createConnector(lineLayer, { color: "#3b82f6", width: 2.3, sketchUrl: sketch });
+          const connM2G2 = Primitives.createConnector(lineLayer, { color: "#10b981", width: 2.1, sketchUrl: sketch });
+          const connM3P3 = Primitives.createConnector(lineLayer, { color: "#3b82f6", width: 2.3, sketchUrl: sketch });
+          const connSkipM3 = Primitives.createConnector(lineLayer, { color: "#ef4444", width: 1.9, dashed: true, markerEnd: marker("red"), sketchUrl: sketch });
+          const connCheckP1 = Primitives.createConnector(lineLayer, { color: "#ef4444", width: 1.9, dashed: true, markerEnd: marker("red"), sketchUrl: sketch });
+
+          const sysmon = Primitives.createSysmon(nodeLayer, 366, 54, sketch);
+          const P1 = Primitives.createP(nodeLayer, "P1", 366, 158, "_Psyscall", sketch);
+          const M1 = Primitives.createM(nodeLayer, "M1", 92, 134, sketch);
+          const G1 = Primitives.createG(nodeLayer, "G1", 92, 66, 18, sketch);
+          const G0 = Primitives.createG0(nodeLayer, 232, 246, sketch);
+
+          const M2 = Primitives.createM(nodeLayer, "M2", 104, 366, sketch);
+          const G2 = Primitives.createG(nodeLayer, "G2", p1Runq.slotCenters[0].x, p1Runq.slotCenters[0].y, 16, sketch);
+          const G3 = Primitives.createG(nodeLayer, "G3", p1Runq.slotCenters[1].x, p1Runq.slotCenters[1].y, 16, sketch);
+
+          const M3 = Primitives.createM(nodeLayer, "M3", 666, 114, sketch);
+          const P3 = Primitives.createP(nodeLayer, "P3", 790, 114, "_Prunning", sketch);
+
+          const skipBubble = Primitives.createCallout(fxLayer, {
+            x: 726, y: 212, text: "跳过 M3：已有主 P3，不拆东墙补西墙！",
+            color: "#b91c1c", bg: "#fbeeed", maxW: 256, sketchUrl: sketch
+          });
+          const cutCross = Primitives.createCallout(fxLayer, {
+            x: 230, y: 112, text: "✕ 强行切断 oldp",
+            color: "#b91c1c", bg: "#fbeeed", maxW: 124, sketchUrl: sketch
+          });
+          const grqEmptyText = el("text", {
+            x: 618, y: 366, "text-anchor": "middle",
+            "font-size": 12, "font-family": "var(--font-mono)", fill: "var(--svg-text-muted)"
+          }, bgLayer);
+          grqEmptyText.textContent = "(全局队列为空)";
+
+          connM3P3.set({ ...Geom.connect({ type: "tri", x: 666, y: 114 }, { type: "rect", x: 790, y: 114, w: 84, h: 52 }), opacity: 1 });
+
+          return {
+            sysmon, P1, M1, G1, G0, M2, G2, G3, M3, P3, p1Runq, grqZone, grqEmptyText,
+            connOldp, connM1G1, connM1G0, connSysmon, connM2P1, connM2G2, connSkipM3, connCheckP1,
+            skipBubble, cutCross
+          };
+        },
+        steps: [
+          {
+            title: "初始状态：M1 带着 G1 阻塞于内核磁盘 I/O，P1 留有任务，旁有自旋 M3 与休眠 M2",
+            desc: "<code>M1</code> 带着 <code>G1</code> 陷入漫长的内核磁盘 I/O 阻塞；<code>P1</code> 处于 <code>_Psyscall</code> 且本地队列仍有 <code>[G2, G3]</code> 亟待执行；左下休眠队列有空闲 <code>M2</code>；右上已有绑定 <code>P3</code> 的自旋线程 <code>M3</code>。",
+            apply(u) {
+              const s = u.p1Runq.slotCenters;
+              u.sysmon.setState({ x: 366, y: 54, active: false });
+              u.P1.setState({ x: 366, y: 158, status: "_Psyscall", highlight: false });
+              u.M1.setState({ x: 92, y: 134, mode: "normal" });
+              u.G1.setState({ x: 92, y: 66, tag: "磁盘 I/O 阻塞", tagColor: "red", tagY: -25 });
+              u.G0.setState({ x: 232, y: 246, active: false, opacity: 0 });
+              u.M2.setState({ x: 104, y: 366, mode: "parked" });
+              u.G2.setState({ x: s[0].x, y: s[0].y, opacity: 1 });
+              u.G3.setState({ x: s[1].x, y: s[1].y, opacity: 1 });
+              u.M3.setState({ x: 666, y: 114, mode: "spinning" });
+              u.P3.setState({ x: 790, y: 114, status: "_Prunning" });
+              u.p1Runq.setCursors(0, 2);
+              u.grqEmptyText.setAttribute("opacity", "1");
+              u.grqZone.setHighlight(false);
+              u.connM1G1.set({ ...Geom.connect({ type: "tri", x: 92, y: 134 }, { type: "circle", x: 92, y: 66, r: 18 }), opacity: 1 });
+              u.connOldp.set({ ...Geom.connect({ type: "tri", x: 92, y: 134 }, { type: "rect", x: 366, y: 158, w: 84, h: 52 }), opacity: 1, label: "oldp" });
+              u.connSysmon.set({ x1: 366, y1: 86, x2: 366, y2: 128, opacity: 0 });
+              u.connM2P1.set({ x1: 274, y1: 158, x2: 320, y2: 158, opacity: 0 });
+              u.connM2G2.set({ x1: 246, y1: 132, x2: 246, y2: 96, opacity: 0 });
+              u.connM1G0.set({ x1: 152, y1: 246, x2: 204, y2: 246, opacity: 0 });
+              u.connSkipM3.set({ x1: 534, y1: 140, x2: 632, y2: 114, opacity: 0 });
+              u.connCheckP1.set({ x1: 152, y1: 236, x2: 326, y2: 184, opacity: 0 });
+              u.skipBubble.set({ opacity: 0 });
+              u.cutCross.set({ opacity: 0 });
+            }
+          },
+          {
+            title: "步骤 1：sysmon 巡检发现超时，触发 retake() 强行剥离 P1",
+            desc: "后台监控线程 <code>sysmon</code>（红色六边形）巡检发现 <code>P1</code> 处于 <code>_Psyscall</code> 超时（且本地队列非空），触发 <code>retake()</code> 强行切断 <code>M1</code> 的 <code>oldp</code> 弱联系，将 <code>P1</code> 置为 <code>_Pidle</code>。",
+            apply(u) {
+              const s = u.p1Runq.slotCenters;
+              u.sysmon.setState({ x: 366, y: 54, active: true });
+              u.P1.setState({ x: 366, y: 158, status: "_Pidle", highlight: true });
+              u.M1.setState({ x: 92, y: 134, mode: "normal" });
+              u.G1.setState({ x: 92, y: 66, tag: "仍在阻塞中", tagColor: "red", tagY: -25 });
+              u.G0.setState({ x: 232, y: 246, active: false, opacity: 0 });
+              u.M2.setState({ x: 104, y: 366, mode: "parked" });
+              u.G2.setState({ x: s[0].x, y: s[0].y, opacity: 1 });
+              u.G3.setState({ x: s[1].x, y: s[1].y, opacity: 1 });
+              u.p1Runq.setCursors(0, 2);
+              u.connM1G1.set({ ...Geom.connect({ type: "tri", x: 92, y: 134 }, { type: "circle", x: 92, y: 66, r: 18 }), opacity: 1 });
+              u.connOldp.set({ ...Geom.connect({ type: "tri", x: 92, y: 134 }, { type: "rect", x: 366, y: 158, w: 84, h: 52 }), opacity: 0.2, label: "" });
+              u.connSysmon.set({ ...Geom.connect({ type: "hex", x: 366, y: 54, r: 30 }, { type: "rect", x: 366, y: 158, w: 84, h: 52 }), opacity: 1, label: "retake()" });
+              u.connM2P1.set({ x1: 274, y1: 158, x2: 320, y2: 158, opacity: 0 });
+              u.connM2G2.set({ x1: 246, y1: 132, x2: 246, y2: 96, opacity: 0 });
+              u.connM1G0.set({ x1: 152, y1: 246, x2: 204, y2: 246, opacity: 0 });
+              u.connSkipM3.set({ x1: 534, y1: 140, x2: 632, y2: 114, opacity: 0 });
+              u.connCheckP1.set({ x1: 152, y1: 236, x2: 326, y2: 184, opacity: 0 });
+              u.skipBubble.set({ opacity: 0 });
+              u.cutCross.set({ x: 226, y: 145, opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 2：handoffp(P1) 跳过已有主的 M3，唤醒休眠 M2 接管 P1 执行 G2, G3",
+            desc: "<code>retake()</code> 调用 <code>handoffp(P1)</code> 交接所有权：<strong>跳过已绑定 P3 的自旋 M3</strong>（绝不拆东墙补西墙），从休眠队列唤醒无主的 <code>M2</code> 接管 <code>P1</code>（<code>_Prunning</code>），立刻弹出 <code>G2</code> 继续推进任务！",
+            apply(u) {
+              const s = u.p1Runq.slotCenters;
+              u.sysmon.setState({ x: 366, y: 54, active: false });
+              u.P1.setState({ x: 366, y: 158, status: "_Prunning", highlight: true });
+              u.M1.setState({ x: 92, y: 134, mode: "normal" });
+              u.G1.setState({ x: 92, y: 66, tag: "仍在阻塞中", tagColor: "red", tagY: -25 });
+              u.G0.setState({ x: 232, y: 246, active: false, opacity: 0 });
+              u.M2.setState({ x: 246, y: 158, mode: "normal" });
+              u.G2.setState({ x: 246, y: 82, opacity: 1, highlight: true, tag: "M2 接管运行", tagColor: "green", tagY: -24 });
+              u.G3.setState({ x: s[1].x, y: s[1].y, opacity: 1 });
+              u.p1Runq.setCursors(1, 2);
+              u.connM1G1.set({ ...Geom.connect({ type: "tri", x: 92, y: 134 }, { type: "circle", x: 92, y: 66, r: 18 }), opacity: 1 });
+              u.connOldp.set({ x1: 118, y1: 134, x2: 320, y2: 158, opacity: 0 });
+              u.connSysmon.set({ x1: 366, y1: 86, x2: 366, y2: 128, opacity: 0 });
+              u.connM2P1.set({ ...Geom.connect({ type: "tri", x: 246, y: 158 }, { type: "rect", x: 366, y: 158, w: 84, h: 52 }), opacity: 1 });
+              u.connM2G2.set({ ...Geom.connect({ type: "tri", x: 246, y: 158 }, { type: "circle", x: 246, y: 82, r: 16 }), opacity: 1 });
+              u.connM1G0.set({ x1: 152, y1: 246, x2: 204, y2: 246, opacity: 0 });
+              u.connSkipM3.set({ ...Geom.connect({ type: "rect", x: 366, y: 158, w: 84, h: 52 }, { type: "tri", x: 666, y: 114 }), curve: 58, opacity: 0.75, label: "✕ 跳过 M3" });
+              u.connCheckP1.set({ x1: 152, y1: 236, x2: 326, y2: 184, opacity: 0 });
+              u.skipBubble.set({ x: 722, y: 222, text: "跳过 M3：已有主 P3，不拆东墙补西墙！", color: "#b91c1c", bg: "#fbeeed", opacity: 1, width: 256 });
+              u.cutCross.set({ opacity: 0 });
+            }
+          },
+          {
+            title: "步骤 3：许久后 I/O 完成，M1 返回用户态发现 P1 已被占领且无空闲 P",
+            desc: "漫长的磁盘 I/O 终于完成，<code>M1</code> 带着 <code>G1</code> 返回用户态执行 <code>exitsyscall()</code>：发现原 <code>P1</code> 已被 <code>M2</code> 占领，且全局再无其他空闲 P 可供绑定，进入慢路径 <code>exitsyscall0()</code>。",
+            apply(u) {
+              const s = u.p1Runq.slotCenters;
+              u.P1.setState({ x: 366, y: 158, status: "_Prunning", highlight: false });
+              u.M1.setState({ x: 132, y: 248, mode: "normal" });
+              u.G1.setState({ x: 64, y: 248, opacity: 1, highlight: true, tag: "I/O 返回", tagColor: "amber", tagY: 28 });
+              u.G0.setState({ x: 236, y: 248, active: false, opacity: 0.9 });
+              u.M2.setState({ x: 246, y: 158, mode: "normal" });
+              u.G2.setState({ x: 246, y: 82, opacity: 1, highlight: false });
+              u.G3.setState({ x: s[1].x, y: s[1].y, opacity: 1 });
+              u.p1Runq.setCursors(1, 2);
+              u.grqEmptyText.setAttribute("opacity", "1");
+              u.grqZone.setHighlight(false);
+              u.connM1G1.set({ ...Geom.connect({ type: "tri", x: 132, y: 248 }, { type: "circle", x: 64, y: 248, r: 18 }), opacity: 1 });
+              u.connM2P1.set({ ...Geom.connect({ type: "tri", x: 246, y: 158 }, { type: "rect", x: 366, y: 158, w: 84, h: 52 }), opacity: 1 });
+              u.connM2G2.set({ ...Geom.connect({ type: "tri", x: 246, y: 158 }, { type: "circle", x: 246, y: 82, r: 16 }), opacity: 1 });
+              u.connM1G0.set({ x1: 158, y1: 248, x2: 208, y2: 248, opacity: 0 });
+              u.connSkipM3.set({ x1: 534, y1: 140, x2: 632, y2: 114, opacity: 0 });
+              u.connCheckP1.set({ ...Geom.connect({ type: "tri", x: 132, y: 248 }, { type: "rect", x: 366, y: 158, w: 84, h: 52 }), curve: 18, opacity: 1, color: "#ef4444", label: "P1 已被占 & 无空闲 P" });
+              u.skipBubble.set({ opacity: 0 });
+              u.cutCross.set({ opacity: 0 });
+            }
+          },
+          {
+            title: "步骤 4：M1 切至 G0 将 G1 放入全局队列，随后 M1 休眠进入 midle",
+            desc: "<code>M1</code> 通过 <code>mcall(exitsyscall0)</code> 切到系统栈 <code>G0</code>，将 <code>G1</code> 置为 <code>_Grunnable</code> 并通过 <code>globrunqput()</code> 挂入底部紫色<strong>全局队列</strong>；随后 <code>M1</code> 调用 <code>stopm()</code> 变为半透明灰蓝色，进入左下角<strong>休眠 M 队列</strong>。",
+            apply(u) {
+              const s = u.p1Runq.slotCenters;
+              u.P1.setState({ x: 366, y: 158, status: "_Prunning", highlight: false });
+              u.M1.setState({ x: 180, y: 366, mode: "parked" });
+              u.G1.setState({ x: 482, y: 364, opacity: 1, highlight: true, tag: "_Grunnable", tagColor: "purple", tagY: 28 });
+              u.G0.setState({ x: 274, y: 366, active: true, opacity: 1 });
+              u.M2.setState({ x: 246, y: 158, mode: "normal" });
+              u.G2.setState({ x: 246, y: 82, opacity: 1 });
+              u.G3.setState({ x: s[1].x, y: s[1].y, opacity: 1 });
+              u.p1Runq.setCursors(1, 2);
+              u.grqEmptyText.setAttribute("opacity", "0");
+              u.grqZone.setHighlight(true);
+              u.connM1G1.set({ x1: 92, y1: 112, x2: 92, y2: 88, opacity: 0 });
+              u.connM2P1.set({ ...Geom.connect({ type: "tri", x: 246, y: 158 }, { type: "rect", x: 366, y: 158, w: 84, h: 52 }), opacity: 1 });
+              u.connM2G2.set({ ...Geom.connect({ type: "tri", x: 246, y: 158 }, { type: "circle", x: 246, y: 82, r: 16 }), opacity: 1 });
+              u.connM1G0.set({ ...Geom.connect({ type: "tri", x: 180, y: 366 }, { type: "g0", x: 274, y: 366 }), opacity: 0.75 });
+              u.connCheckP1.set({ ...Geom.connect({ type: "g0", x: 274, y: 366 }, { type: "circle", x: 482, y: 364, r: 18 }), opacity: 1, color: "#8b5cf6", label: "globrunqput(G1)" });
+              u.skipBubble.set({ x: 702, y: 364, text: "M1 调用 stopm() 进入休眠", color: "#57534e", bg: "#f3f1ea", opacity: 1, width: 210 });
+              u.cutCross.set({ opacity: 0 });
+            }
+          }
+        ]
+      },
+
+      /* ----------------------------------------------------------------------
+         场景 7：高并发网络 I/O（Netpoller / epoll 非阻塞机制）
+         ---------------------------------------------------------------------- */
+      {
+        id: "scene-7",
+        num: "07",
+        title: "高并发网络 I/O（Netpoller / epoll 非阻塞机制）",
+        takeaway: "Go 网络 Socket 均采用非阻塞 I/O；遇 EAGAIN 时仅将 G 挂入 Netpoller (epoll) 托管，线程 M 零阻塞立即切换执行其他协程，数据到达后再唤醒 G 重新入队。",
+        viewBox: "0 0 880 430",
+        build(svg, defs) {
+          const { marker, sketch } = defs;
+          const bgLayer = el("g", {}, svg);
+          const lineLayer = el("g", {}, svg);
+          const nodeLayer = el("g", {}, svg);
+          const fxLayer = el("g", {}, svg);
+
+          Primitives.createZone(bgLayer, {
+            x: 24, y: 20, w: 472, h: 390,
+            title: "用户态调度单元（M1 全程保持非阻塞）",
+            color: "#3b82f6", fill: "rgba(59,130,246,0.025)", dashed: false, sketchUrl: sketch
+          });
+
+          const grqZone = Primitives.createZone(bgLayer, {
+            x: 528, y: 318, w: 328, h: 92,
+            title: "全局队列 Global Run Queue（备用入队）",
+            color: "#8b5cf6", fill: "rgba(139,92,246,0.045)", dashed: true, sketchUrl: sketch
+          });
+          const grqHint = el("text", {
+            x: 692, y: 374, "text-anchor": "middle",
+            "font-size": 11, "font-family": "var(--font-sans)", fill: "var(--svg-text-muted)"
+          }, bgLayer);
+          grqHint.textContent = "（或经由 injectglist 放入全局队列）";
+
+          const p1Runnext = Primitives.createRunNext(bgLayer, 412, 152, sketch);
+          const p1Runq = Primitives.createRunQ(bgLayer, {
+            x: 266, y: 218, title: "P1.runq", width: 92, slotH: 36, compact: true, markerFn: marker, sketchUrl: sketch
+          });
+
+          const netpoller = Primitives.createNetpoller(bgLayer, 692, 152, sketch);
+
+          const nicPill = Primitives.createCallout(fxLayer, {
+            x: 692, y: 40, text: "网卡 TCP 数据包到达 (EPOLLIN)",
+            color: "#4f46e5", bg: "#eef0fa", maxW: 244, sketchUrl: sketch
+          });
+
+          const connM1P1 = Primitives.createConnector(lineLayer, { color: "#3b82f6", width: 2.3, sketchUrl: sketch });
+          const connP1RN = Primitives.createConnector(lineLayer, { color: "#d97706", width: 1.7, dashed: true, sketchUrl: sketch });
+          const connM1Run = Primitives.createConnector(lineLayer, { color: "#10b981", width: 2.1, sketchUrl: sketch });
+          const connEagain = Primitives.createConnector(lineLayer, { color: "#6366f1", width: 2.1, dashed: true, markerEnd: marker("indigo"), flow: true, sketchUrl: sketch });
+          const connNic = Primitives.createConnector(lineLayer, { color: "#6366f1", width: 2.2, dashed: true, markerEnd: marker("indigo"), flow: true, sketchUrl: sketch });
+          const connRequeue = Primitives.createConnector(lineLayer, { color: "#10b981", width: 2.1, dashed: true, markerEnd: marker("green"), flow: true, sketchUrl: sketch });
+
+          const M1 = Primitives.createM(nodeLayer, "M1", 118, 152, sketch);
+          const P1 = Primitives.createP(nodeLayer, "P1", 266, 152, "_Prunning", sketch);
+          const G1 = Primitives.createG(nodeLayer, "G1", 118, 78, 19, sketch);
+          const G2 = Primitives.createG(nodeLayer, "G2", p1Runq.slotCenters[0].x, p1Runq.slotCenters[0].y, 17, sketch);
+
+          const statusBanner = Primitives.createCallout(fxLayer, {
+            x: 692, y: 266, text: "", color: "#4f46e5", bg: "#eef0fa", maxW: 286, sketchUrl: sketch
+          });
+
+          connM1P1.set({ ...Geom.connect({ type: "tri", x: 118, y: 152 }, { type: "rect", x: 266, y: 152, w: 84, h: 52 }), opacity: 1 });
+          connP1RN.set({ ...Geom.connect({ type: "rect", x: 266, y: 152, w: 84, h: 52 }, { type: "rect", x: 412, y: 152, w: 66, h: 52 }), opacity: 1 });
+
+          return {
+            M1, P1, G1, G2, p1Runq, p1Runnext, netpoller, grqZone, nicPill, statusBanner,
+            connM1Run, connEagain, connNic, connRequeue
+          };
+        },
+        steps: [
+          {
+            title: "初始状态：M1 + P1 正在执行 G1（读取 TCP Socket），P1.runq 有 G2",
+            desc: "<code>M1</code> 绑定 <code>P1</code>（<code>_Prunning</code>）正在执行 <code>G1</code>，准备对一个非阻塞 TCP Socket 发起读操作；<code>P1.runq[0]</code> 中有就绪的 <code>G2</code>；画布右侧为靛蓝色 <code>Netpoller (epoll)</code> 事件多路复用器。",
+            apply(u) {
+              const s = u.p1Runq.slotCenters;
+              u.M1.setState({ x: 118, y: 152, mode: "normal" });
+              u.P1.setState({ x: 266, y: 152, status: "_Prunning" });
+              u.G1.setState({ x: 118, y: 78, opacity: 1, highlight: false, tag: "TCP conn.Read()", tagColor: "green", tagY: -27 });
+              u.G2.setState({ x: s[0].x, y: s[0].y, opacity: 1, highlight: false });
+              u.p1Runq.setCursors(0, 1);
+              u.p1Runnext.setHighlight(false);
+              u.netpoller.setActive(false);
+              u.nicPill.set({ opacity: 0 });
+              u.statusBanner.set({ opacity: 0 });
+              u.connM1Run.set({ ...Geom.connect({ type: "tri", x: 118, y: 152 }, { type: "circle", x: 118, y: 78, r: 19 }), opacity: 1 });
+              u.connEagain.set({ x1: 138, y1: 78, x2: 602, y2: 148, opacity: 0 });
+              u.connNic.set({ x1: 692, y1: 58, x2: 692, y2: 88, opacity: 0 });
+              u.connRequeue.set({ x1: 602, y1: 152, x2: 446, y2: 152, opacity: 0 });
+            }
+          },
+          {
+            title: "步骤 1：G1 发起非阻塞读，底层瞬间返回 EAGAIN（不阻塞 M1）",
+            desc: "Go 创建的所有网络 fd 均设置为 <code>O_NONBLOCK</code>。当对端数据尚未到达时，<code>G1</code> 执行 <code>read()</code> 系统调用瞬间返回 <code>EAGAIN</code> 错误码，绝不会阻塞底层的操作系统线程 <code>M1</code>！",
+            apply(u) {
+              const s = u.p1Runq.slotCenters;
+              u.G1.setState({ x: 118, y: 78, opacity: 1, highlight: true, tag: "返回 EAGAIN（无数据）", tagColor: "amber", tagY: -27 });
+              u.G2.setState({ x: s[0].x, y: s[0].y, opacity: 1, highlight: false });
+              u.p1Runq.setCursors(0, 1);
+              u.p1Runnext.setHighlight(false);
+              u.netpoller.setActive(false);
+              u.nicPill.set({ opacity: 0 });
+              u.connM1Run.set({ ...Geom.connect({ type: "tri", x: 118, y: 152 }, { type: "circle", x: 118, y: 78, r: 19 }), opacity: 1 });
+              const c = Geom.connect({ type: "circle", x: 118, y: 78, r: 19 }, { type: "diamond", x: 692, y: 152, rx: 90, ry: 62 });
+              u.connEagain.set({ ...c, curve: -36, opacity: 1, label: "EAGAIN → poll_runtime_pollWait()" });
+              u.connNic.set({ x1: 692, y1: 58, x2: 692, y2: 88, opacity: 0 });
+              u.connRequeue.set({ x1: 602, y1: 152, x2: 446, y2: 152, opacity: 0 });
+              u.statusBanner.set({ x: 692, y: 266, text: "非阻塞 Socket 立即返回 EAGAIN，M1 不阻塞", color: "#92400e", bg: "#fbf5e6", opacity: 1, width: 298 });
+            }
+          },
+          {
+            title: "步骤 2：G1 置为 _Gwaiting 交由 Netpoller 托管，M1 立刻无缝切换执行 G2",
+            desc: "运行时调用 <code>gopark()</code> 将 <code>G1</code> 挂起为 <code>_Gwaiting</code> 并注册至 <code>Netpoller (epoll)</code> 监听队列；<code>M1</code> 零等待，立刻从 <code>P1.runq</code> 取出 <code>G2</code> 无缝继续执行（<code>head: 0 → 1</code>），线程利用率拉满。",
+            apply(u) {
+              u.G1.setState({ x: 692, y: 168, opacity: 1, highlight: false, tag: "_Gwaiting", tagColor: "indigo", tagY: 28 });
+              u.G2.setState({ x: 118, y: 78, opacity: 1, highlight: true, tag: "M1 无缝切换执行", tagColor: "green", tagY: -27 });
+              u.p1Runq.setCursors(1, 1);
+              u.p1Runnext.setHighlight(false);
+              u.netpoller.setActive(true);
+              u.nicPill.set({ opacity: 0 });
+              u.connM1Run.set({ ...Geom.connect({ type: "tri", x: 118, y: 152 }, { type: "circle", x: 118, y: 78, r: 19 }), opacity: 1 });
+              u.connEagain.set({ x1: 138, y1: 78, x2: 602, y2: 148, opacity: 0 });
+              u.connNic.set({ x1: 692, y1: 58, x2: 692, y2: 88, opacity: 0 });
+              u.connRequeue.set({ x1: 602, y1: 152, x2: 446, y2: 152, opacity: 0 });
+              u.statusBanner.set({ x: 692, y: 266, text: "G1 已由 epoll 托管监听，M1 专注跑 G2", color: "#3730a3", bg: "#eef0fa", opacity: 1, width: 286 });
+            }
+          },
+          {
+            title: "步骤 3：网卡数据到达，Netpoller 触发就绪事件将 G1 改回 _Grunnable",
+            desc: "对端 TCP 数据包抵达网卡，操作系统内核唤醒 <code>epoll_wait</code> 返回可读事件（<code>EPOLLIN</code>）；Go 调度器通过 <code>netpoll()</code> 捕获就绪事件，将 <code>G1</code> 的状态从 <code>_Gwaiting</code> 改回 <code>_Grunnable</code>。",
+            apply(u) {
+              u.G1.setState({ x: 692, y: 168, opacity: 1, highlight: true, tag: "_Grunnable ✓", tagColor: "green", tagY: 28 });
+              u.G2.setState({ x: 118, y: 78, opacity: 1, highlight: false, tag: "running", tagColor: "green", tagY: -27 });
+              u.p1Runq.setCursors(1, 1);
+              u.p1Runnext.setHighlight(false);
+              u.netpoller.setActive(true);
+              u.nicPill.set({ x: 692, y: 40, opacity: 1 });
+              u.connM1Run.set({ ...Geom.connect({ type: "tri", x: 118, y: 152 }, { type: "circle", x: 118, y: 78, r: 19 }), opacity: 1 });
+              u.connEagain.set({ x1: 138, y1: 78, x2: 602, y2: 148, opacity: 0 });
+              u.connNic.set({ x1: 692, y1: 56, x2: 692, y2: 86, opacity: 1 });
+              u.connRequeue.set({ x1: 602, y1: 152, x2: 446, y2: 152, opacity: 0 });
+              u.statusBanner.set({ x: 692, y: 266, text: "netpoll() 捕获 EPOLLIN → goready(G1)", color: "#065f46", bg: "#edf6ef", opacity: 1, width: 286 });
+            }
+          },
+          {
+            title: "步骤 4：G1 被放回 P1.runnext（或全局队列），等待下次调度读取数据",
+            desc: "就绪的 <code>G1</code> 经由 <code>runqput()</code> / <code>injectglist()</code> 重新放回 <code>P1.runnext</code> 插队槽位（或全局队列），等待 <code>M1</code> 在下一次调度中立即恢复执行并读出就绪的 Socket 数据！",
+            apply(u) {
+              u.G1.setState({ x: 412, y: 152, opacity: 1, highlight: true, tag: "等待下次调度", tagColor: "amber", tagY: -31 });
+              u.G2.setState({ x: 118, y: 78, opacity: 1, highlight: false, tag: "running", tagColor: "green", tagY: -27 });
+              u.p1Runq.setCursors(1, 1);
+              u.p1Runnext.setHighlight(true);
+              u.netpoller.setActive(false);
+              u.nicPill.set({ x: 692, y: 40, opacity: 0.45 });
+              u.connM1Run.set({ ...Geom.connect({ type: "tri", x: 118, y: 152 }, { type: "circle", x: 118, y: 78, r: 19 }), opacity: 1 });
+              u.connEagain.set({ x1: 138, y1: 78, x2: 602, y2: 148, opacity: 0 });
+              u.connNic.set({ x1: 692, y1: 56, x2: 692, y2: 86, opacity: 0 });
+              const cBack = Geom.connect({ type: "diamond", x: 692, y: 152, rx: 90, ry: 62 }, { type: "rect", x: 412, y: 152, w: 66, h: 52 });
+              u.connRequeue.set({ ...cBack, opacity: 1, label: "放回 runnext" });
+              u.statusBanner.set({ x: 692, y: 266, text: "高并发闭环完成：零线程阻塞处理百万连接", color: "#065f46", bg: "#edf6ef", opacity: 1, width: 298 });
+            }
+          }
+        ]
+      }
+    ];
+
+    /* ========================================================================
+       5. Reusable Interactive Scene Controller Class
+       ======================================================================== */
+    class GMPSceneController {
+      constructor(config, container) {
+        this.config = config;
+        this.totalSteps = config.steps.length;
+        this.currentStep = 0;
+        this.isPlaying = false;
+        this.speed = 1;
+        this.timer = null;
+
+        this.card = this._renderCard(container);
+        this.svg = this.card.querySelector(".scene-svg");
+        this.defs = addSvgDefs(this.svg, config.id);
+        this.ui = config.build(this.svg, this.defs);
+
+        this._bindControls();
+        this.goTo(0);
+      }
+
+      _renderCard(container) {
+        const section = document.createElement("section");
+        section.className = "scene-card";
+        section.id = this.config.id;
+        section.innerHTML = `
+          <header class="scene-header">
+            <div class="scene-meta-row">
+              <span class="scene-num">${this.config.num}</span>
+              <h2>${this.config.title}</h2>
+            </div>
+            <p class="scene-takeaway">
+              <span class="takeaway-label">核心结论</span>${this.config.takeaway}
+            </p>
+          </header>
+
+          <div class="sketch-frame">
+            <div class="scene-stage">
+              <svg class="scene-svg" viewBox="${this.config.viewBox}" role="img" aria-label="${this.config.title}"></svg>
+            </div>
+
+            <div class="scene-controls">
+              <div class="ctrl-group">
+                <button type="button" class="ctrl-btn primary btn-play" aria-label="播放或暂停">
+                  <svg class="icon-play" viewBox="0 0 16 16"><path d="M4 2.8l9.5 5.2L4 13.2z"/></svg>
+                  <svg class="icon-pause" viewBox="0 0 16 16" style="display:none;"><rect x="3.5" y="2.8" width="3.2" height="10.4" rx="0.6"/><rect x="9.3" y="2.8" width="3.2" height="10.4" rx="0.6"/></svg>
+                  <span class="play-text">播放</span>
+                </button>
+                <button type="button" class="ctrl-btn btn-prev" title="上一步">上一步</button>
+                <button type="button" class="ctrl-btn btn-next" title="下一步">下一步</button>
+                <button type="button" class="ctrl-btn btn-reset" title="重置到初始状态">重置</button>
+              </div>
+
+              <div class="progress-wrap">
+                <div class="step-segments" role="group" aria-label="步骤进度条"></div>
+                <span class="step-counter">Step 1 / ${this.totalSteps}</span>
+              </div>
+
+              <div class="speed-group" role="group" aria-label="倍速控制">
+                <button type="button" class="speed-btn" data-speed="0.5">0.5x</button>
+                <button type="button" class="speed-btn active" data-speed="1">1x</button>
+                <button type="button" class="speed-btn" data-speed="2">2x</button>
+              </div>
+            </div>
+
+            <div class="scene-explain">
+              <div class="explain-head">
+                <span class="explain-step-tag">Step 1 / ${this.totalSteps}</span>
+                <span class="explain-title"></span>
+              </div>
+              <p class="explain-body"></p>
+            </div>
+          </div>
+        `;
+
+        const segWrap = section.querySelector(".step-segments");
+        for (let i = 0; i < this.totalSteps; i++) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "step-seg";
+          btn.title = `跳转到 Step ${i + 1}`;
+          btn.addEventListener("click", () => {
+            this.pause();
+            this.goTo(i);
+          });
+          segWrap.appendChild(btn);
+        }
+
+        container.appendChild(section);
+        return section;
+      }
+
+      _bindControls() {
+        this.btnPlay = this.card.querySelector(".btn-play");
+        this.iconPlay = this.card.querySelector(".icon-play");
+        this.iconPause = this.card.querySelector(".icon-pause");
+        this.playText = this.card.querySelector(".play-text");
+        this.btnPrev = this.card.querySelector(".btn-prev");
+        this.btnNext = this.card.querySelector(".btn-next");
+        this.btnReset = this.card.querySelector(".btn-reset");
+        this.stepCounter = this.card.querySelector(".step-counter");
+        this.segments = Array.from(this.card.querySelectorAll(".step-seg"));
+        this.explainTag = this.card.querySelector(".explain-step-tag");
+        this.explainTitle = this.card.querySelector(".explain-title");
+        this.explainBody = this.card.querySelector(".explain-body");
+        this.speedBtns = Array.from(this.card.querySelectorAll(".speed-btn"));
+
+        this.btnPlay.addEventListener("click", () => this.togglePlay());
+        this.btnPrev.addEventListener("click", () => { this.pause(); this.goTo(this.currentStep - 1); });
+        this.btnNext.addEventListener("click", () => { this.pause(); this.goTo(this.currentStep + 1); });
+        this.btnReset.addEventListener("click", () => { this.pause(); this.goTo(0); });
+
+        this.speedBtns.forEach(btn => {
+          btn.addEventListener("click", () => {
+            this.setSpeed(parseFloat(btn.dataset.speed));
+          });
+        });
+      }
+
+      setSpeed(sp) {
+        this.speed = sp;
+        const dur = (0.65 / sp).toFixed(2) + "s";
+        this.card.style.setProperty("--anim-dur", dur);
+        this.speedBtns.forEach(b => b.classList.toggle("active", parseFloat(b.dataset.speed) === sp));
+        if (this.isPlaying) {
+          this._clearTimer();
+          this._scheduleNext();
+        }
+      }
+
+      togglePlay() {
+        if (this.isPlaying) {
+          this.pause();
+        } else {
+          if (this.currentStep >= this.totalSteps - 1) {
+            this.goTo(0);
+          }
+          this.isPlaying = true;
+          this._updatePlayBtn();
+          this._scheduleNext();
+        }
+      }
+
+      pause() {
+        this.isPlaying = false;
+        this._clearTimer();
+        this._updatePlayBtn();
+      }
+
+      _clearTimer() {
+        if (this.timer) {
+          clearTimeout(this.timer);
+          this.timer = null;
+        }
+      }
+
+      _scheduleNext() {
+        const delay = Math.round(2600 / this.speed);
+        this.timer = setTimeout(() => {
+          if (!this.isPlaying) return;
+          if (this.currentStep < this.totalSteps - 1) {
+            this.goTo(this.currentStep + 1);
+            if (this.currentStep < this.totalSteps - 1) {
+              this._scheduleNext();
+            } else {
+              this.pause();
+            }
+          } else {
+            this.pause();
+          }
+        }, delay);
+      }
+
+      _updatePlayBtn() {
+        this.iconPlay.style.display = this.isPlaying ? "none" : "block";
+        this.iconPause.style.display = this.isPlaying ? "block" : "none";
+        this.playText.textContent = this.isPlaying ? "暂停" : "播放";
+      }
+
+      goTo(idx) {
+        const clamped = Math.max(0, Math.min(this.totalSteps - 1, idx));
+        this.currentStep = clamped;
+        const stepObj = this.config.steps[clamped];
+        stepObj.apply(this.ui);
+
+        const label = `Step ${clamped + 1} / ${this.totalSteps}`;
+        this.stepCounter.textContent = label;
+        this.explainTag.textContent = label;
+        this.explainTitle.textContent = stepObj.title;
+        this.explainBody.innerHTML = stepObj.desc;
+
+        this.btnPrev.disabled = clamped === 0;
+        this.btnNext.disabled = clamped === this.totalSteps - 1;
+
+        this.segments.forEach((seg, i) => {
+          seg.classList.toggle("current", i === clamped);
+          seg.classList.toggle("done", i < clamped);
+        });
+      }
+    }
+
+    /* ========================================================================
+       6. Mount All 7 Scenarios & Sticky Margin TOC Active Spy
+       ======================================================================== */
+    const scenesRoot = document.getElementById("scenes-root");
+    SCENES_CONFIG.forEach(cfg => new GMPSceneController(cfg, scenesRoot));
+
+    (function initTocSpy() {
+      const tocLinks = Array.from(document.querySelectorAll(".toc-link"));
+      const sections = tocLinks
+        .map(link => document.querySelector(link.getAttribute("href")))
+        .filter(Boolean);
+
+      function setActive(id) {
+        tocLinks.forEach(link => {
+          link.classList.toggle("active", link.getAttribute("href") === "#" + id);
+        });
+      }
+
+      if ("IntersectionObserver" in window) {
+        const observer = new IntersectionObserver(entries => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              setActive(entry.target.id);
+            }
+          });
+        }, {
+          rootMargin: "-12% 0px -70% 0px",
+          threshold: 0
+        });
+        sections.forEach(sec => observer.observe(sec));
+      }
+    })();
+  })();
+  </script>
+</body>
+</html>
