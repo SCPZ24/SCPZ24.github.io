@@ -1,0 +1,3629 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Go GC解析 · 图解Go语言 · SCPZ24</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;1,6..72,400&family=Noto+Serif+SC:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ========================================================================
+       SCPZ24 — Editorial Book & Minimalist Hand-Drawn Notebook Theme
+       Matches homepage palette (#faf9f5 warm paper / #141413 dark ink)
+       ======================================================================== */
+    :root {
+      --bg: #faf9f5;
+      --bg-paper: #fdfcf8;
+      --bg-hover: #f2f0e8;
+      --bg-code: #f3f1ea;
+      --ink: #1c1b19;
+      --ink-secondary: #57534e;
+      --ink-muted: #8c867c;
+      --rule: rgba(28, 27, 25, 0.13);
+      --rule-strong: rgba(28, 27, 25, 0.30);
+      --accent: #24576b;
+      --accent-soft: rgba(36, 87, 107, 0.08);
+      --paper-dot: rgba(28, 27, 25, 0.11);
+
+      /* Go GC Semantic Palette */
+      --gc-white-fill: #ffffff;
+      --gc-white-stroke: #94a3b8;
+      --gc-white-text: #334155;
+
+      --gc-gray-fill: #94a3b8;
+      --gc-gray-stroke: #475569;
+      --gc-gray-text: #ffffff;
+      --gc-gray-ring: #d97706;
+
+      --gc-black-fill: #1c1b19;
+      --gc-black-stroke: #09090b;
+      --gc-black-text: #faf9f5;
+
+      --gc-mark-fill: #0f766e;
+      --gc-mark-stroke: #115e59;
+
+      --gc-root-fill: #24576b;
+      --gc-root-stroke: #163a47;
+
+      --gc-stack: #3b82f6;
+      --gc-heap: #d97706;
+      --gc-barrier: #7c3aed;
+      --gc-stw: #dc2626;
+      --gc-safe: #10b981;
+
+      /* Warm Paper SVG Surfaces */
+      --svg-slot-bg: #fdfcf8;
+      --svg-slot-border: rgba(28, 27, 25, 0.24);
+      --svg-queue-bg: #f3f0e6;
+      --svg-text: #1c1b19;
+      --svg-text-sub: #57534e;
+      --svg-text-muted: #8c867c;
+      --svg-pill-bg: #fdfcf8;
+
+      --font-serif: "Noto Serif SC", "Newsreader", "Source Han Serif SC", "Songti SC", "STSong", Georgia, serif;
+      --font-latin-serif: "Newsreader", "Noto Serif SC", Georgia, serif;
+      --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+      --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+      --ease: cubic-bezier(0.22, 1, 0.36, 1);
+      --anim-dur: 0.65s;
+    }
+
+    [data-theme="dark"] {
+      --bg: #141413;
+      --bg-paper: #191816;
+      --bg-hover: #1f1e1b;
+      --bg-code: #1d1c19;
+      --ink: #eae7df;
+      --ink-secondary: #a8a39a;
+      --ink-muted: #746f67;
+      --rule: rgba(234, 231, 223, 0.13);
+      --rule-strong: rgba(234, 231, 223, 0.28);
+      --accent: #82b8cc;
+      --accent-soft: rgba(130, 184, 204, 0.12);
+      --paper-dot: rgba(234, 231, 223, 0.10);
+
+      /* High-contrast tricolor objects in dark mode */
+      --gc-white-fill: #f8fafc;
+      --gc-white-stroke: #cbd5e1;
+      --gc-white-text: #1e293b;
+
+      --gc-gray-fill: #78716c;
+      --gc-gray-stroke: #d6d3d1;
+      --gc-gray-text: #ffffff;
+      --gc-gray-ring: #f59e0b;
+
+      --gc-black-fill: #09090b;
+      --gc-black-stroke: #e5e0d5;
+      --gc-black-text: #faf9f5;
+
+      --svg-slot-bg: #141413;
+      --svg-slot-border: rgba(234, 231, 223, 0.24);
+      --svg-queue-bg: #201f1c;
+      --svg-text: #eae7df;
+      --svg-text-sub: #b8b3aa;
+      --svg-text-muted: #7c776f;
+      --svg-pill-bg: #1e1d1a;
+    }
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    html {
+      font-size: 16px;
+      scroll-behavior: smooth;
+      text-rendering: optimizeLegibility;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--bg);
+      color: var(--ink);
+      font-family: var(--font-sans);
+      line-height: 1.8;
+      font-feature-settings: "kern" 1, "liga" 1;
+      transition: background-color 0.25s var(--ease), color 0.25s var(--ease);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    ::selection {
+      background-color: color-mix(in srgb, var(--accent) 18%, transparent);
+      color: var(--ink);
+    }
+
+    code {
+      font-family: var(--font-mono);
+      font-size: 0.85em;
+      background-color: var(--bg-hover);
+      color: var(--ink);
+      padding: 0.1em 0.38em;
+      border-radius: 3px;
+      border: 1px solid var(--rule);
+    }
+
+    /* ========================================================================
+       Page Frame, Masthead & Breadcrumb (Identical to Homepage & GMP Article)
+       ======================================================================== */
+    .page-wrap {
+      width: 100%;
+      max-width: 1220px;
+      margin: 0 auto;
+      padding: 0 28px;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .masthead {
+      padding: 36px 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .masthead-brand {
+      font-family: var(--font-latin-serif);
+      font-size: 0.92rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink-secondary);
+      transition: color 0.2s var(--ease);
+    }
+
+    .masthead-brand:hover {
+      color: var(--ink);
+    }
+
+    .theme-btn {
+      appearance: none;
+      border: none;
+      background: transparent;
+      padding: 4px 2px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      font-family: var(--font-sans);
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      color: var(--ink-muted);
+      transition: color 0.2s var(--ease);
+    }
+
+    .theme-btn:hover {
+      color: var(--ink);
+    }
+
+    .theme-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      border: 1px solid currentColor;
+      background-color: transparent;
+      transition: background-color 0.2s var(--ease);
+    }
+
+    [data-theme="dark"] .theme-dot {
+      background-color: currentColor;
+    }
+
+    .crumb {
+      margin: 6px 0 0;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.82rem;
+      letter-spacing: 0.04em;
+      color: var(--ink-muted);
+    }
+
+    .crumb a {
+      color: var(--ink-secondary);
+      border-bottom: 1px solid transparent;
+      transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
+    }
+
+    .crumb a:hover {
+      color: var(--ink);
+      border-bottom-color: var(--rule-strong);
+    }
+
+    .crumb .slash {
+      opacity: 0.45;
+      user-select: none;
+    }
+
+    /* Editorial Hero Title Block */
+    .title-block {
+      padding: clamp(28px, 5vh, 52px) 0 30px;
+    }
+
+    .kicker {
+      margin: 0 0 12px;
+      font-family: var(--font-latin-serif);
+      font-style: italic;
+      font-size: 0.92rem;
+      letter-spacing: 0.06em;
+      color: var(--ink-muted);
+    }
+
+    .title-block h1 {
+      margin: 0;
+      font-family: var(--font-serif);
+      font-weight: 500;
+      font-size: clamp(1.75rem, 3.2vw, 2.35rem);
+      line-height: 1.38;
+      letter-spacing: 0.04em;
+      color: var(--ink);
+    }
+
+    .hero-lead {
+      margin: 16px 0 0;
+      font-size: 0.95rem;
+      color: var(--ink-secondary);
+      max-width: 74ch;
+      line-height: 1.85;
+    }
+
+    .book-rule {
+      height: 4px;
+      border-top: 1px solid var(--rule-strong);
+      border-bottom: 1px solid var(--rule);
+      margin: 0;
+    }
+
+    /* ========================================================================
+       Two-Column Editorial Layout: Left Sticky Margin TOC + Notebook Stream
+       ======================================================================== */
+    .doc-layout {
+      padding: 36px 0 72px;
+      display: grid;
+      grid-template-columns: 224px minmax(0, 1fr);
+      gap: 44px;
+      align-items: start;
+      flex: 1;
+    }
+
+    .toc-sidebar {
+      position: sticky;
+      top: 36px;
+      padding-top: 4px;
+      max-height: calc(100vh - 64px);
+      overflow-y: auto;
+    }
+
+    .toc-heading {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin: 0 0 14px;
+      font-size: 0.75rem;
+      font-weight: 400;
+      letter-spacing: 0.14em;
+      color: var(--ink-muted);
+    }
+
+    .toc-heading .en {
+      font-family: var(--font-latin-serif);
+      font-style: italic;
+      letter-spacing: 0.06em;
+    }
+
+    .toc-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      border-left: 1px solid var(--rule);
+    }
+
+    .toc-link {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      padding: 5.5px 0 5.5px 14px;
+      margin-left: -1px;
+      border-left: 1.5px solid transparent;
+      font-size: 0.81rem;
+      line-height: 1.48;
+      color: var(--ink-muted);
+      transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
+    }
+
+    .toc-link:hover {
+      color: var(--ink);
+    }
+
+    .toc-link.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      font-weight: 500;
+    }
+
+    .toc-num {
+      font-family: var(--font-latin-serif);
+      font-style: italic;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.81rem;
+      opacity: 0.7;
+      flex-shrink: 0;
+    }
+
+    .content-col {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 48px;
+    }
+
+    /* ========================================================================
+       Global Legend Section — Clean Sketch-Notebook Sheet
+       ======================================================================== */
+    .legend-section,
+    .summary-section {
+      scroll-margin-top: 32px;
+    }
+
+    .section-caption {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 14px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--rule);
+      flex-wrap: wrap;
+    }
+
+    .section-caption h2 {
+      margin: 0;
+      font-family: var(--font-serif);
+      font-weight: 500;
+      font-size: 1.18rem;
+      letter-spacing: 0.04em;
+      color: var(--ink);
+    }
+
+    .section-caption .en {
+      font-family: var(--font-latin-serif);
+      font-style: italic;
+      font-size: 0.84rem;
+      color: var(--ink-muted);
+    }
+
+    .legend-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(245px, 1fr));
+      gap: 10px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 9px 11px;
+      border-radius: 4px;
+      background: var(--bg-paper);
+      border: 1px dashed var(--rule-strong);
+      transition: background-color 0.2s var(--ease);
+    }
+
+    .legend-item:hover {
+      background: var(--bg-hover);
+    }
+
+    .legend-icon {
+      width: 60px;
+      height: 48px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .legend-text {
+      min-width: 0;
+    }
+
+    .legend-name {
+      font-family: var(--font-serif);
+      font-size: 0.86rem;
+      font-weight: 500;
+      color: var(--ink);
+      line-height: 1.35;
+    }
+
+    .legend-desc {
+      font-size: 0.74rem;
+      color: var(--ink-muted);
+      line-height: 1.4;
+      margin-top: 2px;
+    }
+
+    /* ========================================================================
+       Scenario Section — Minimalist Hand-Drawn Figure Plate
+       ======================================================================== */
+    .scene-card {
+      scroll-margin-top: 28px;
+      padding-top: 6px;
+    }
+
+    .scene-header {
+      margin-bottom: 16px;
+    }
+
+    .scene-meta-row {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+
+    .scene-num {
+      font-family: var(--font-latin-serif);
+      font-style: italic;
+      font-size: 0.96rem;
+      color: var(--ink-muted);
+      flex-shrink: 0;
+    }
+
+    .scene-header h2 {
+      margin: 0;
+      font-family: var(--font-serif);
+      font-weight: 500;
+      font-size: 1.28rem;
+      line-height: 1.4;
+      letter-spacing: 0.03em;
+      color: var(--ink);
+    }
+
+    .scene-badges {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-left: auto;
+    }
+
+    .scene-badge {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      padding: 1px 7px;
+      border-radius: 3px;
+      border: 1px solid var(--rule-strong);
+      background: var(--bg-paper);
+      color: var(--ink-secondary);
+      white-space: nowrap;
+    }
+
+    .scene-badge.ver {
+      border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .scene-takeaway {
+      margin: 8px 0 0;
+      padding: 2px 0 2px 14px;
+      border-left: 2px solid var(--rule-strong);
+      font-size: 0.9rem;
+      color: var(--ink-secondary);
+      line-height: 1.7;
+    }
+
+    .takeaway-label {
+      font-family: var(--font-serif);
+      font-weight: 600;
+      color: var(--ink);
+      margin-right: 6px;
+    }
+
+    /* Hand-Drawn Sketch Notebook Frame */
+    .sketch-frame {
+      border: 1.5px solid var(--rule-strong);
+      border-radius: 6px;
+      background: var(--bg-paper);
+      overflow: hidden;
+    }
+
+    .scene-stage {
+      padding: 18px 18px 14px;
+      background-color: var(--bg-paper);
+      background-image: radial-gradient(var(--paper-dot) 1px, transparent 1px);
+      background-size: 20px 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      border-bottom: 1px dashed var(--rule-strong);
+    }
+
+    .scene-svg {
+      width: 100%;
+      max-width: 880px;
+      height: auto;
+      display: block;
+      user-select: none;
+      overflow: visible;
+    }
+
+    /* Animated SVG Entities */
+    .gc-node {
+      transition: transform var(--anim-dur) var(--ease), opacity 0.4s ease;
+    }
+
+    .gc-fade {
+      transition: opacity 0.4s ease;
+    }
+
+    .gc-shape {
+      transition: fill 0.42s ease, stroke 0.42s ease, opacity 0.4s ease;
+    }
+
+    .pulse-glow {
+      animation: gc-pulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes gc-pulse {
+      0%, 100% { opacity: 0.30; }
+      50% { opacity: 0.90; }
+    }
+
+    .dash-flow {
+      animation: gc-dash 1.2s linear infinite;
+    }
+
+    @keyframes gc-dash {
+      from { stroke-dashoffset: 24; }
+      to   { stroke-dashoffset: 0; }
+    }
+
+    /* Quiet Minimalist Controls Bar */
+    .scene-controls {
+      padding: 10px 18px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--rule);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .ctrl-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .ctrl-btn {
+      appearance: none;
+      border: 1px solid var(--rule-strong);
+      background: var(--bg-paper);
+      color: var(--ink-secondary);
+      height: 31px;
+      padding: 0 11px;
+      border-radius: 4px;
+      font-family: var(--font-sans);
+      font-size: 0.8rem;
+      letter-spacing: 0.03em;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: border-color 0.2s var(--ease), color 0.2s var(--ease), background-color 0.2s var(--ease);
+    }
+
+    .ctrl-btn:hover:not(:disabled) {
+      border-color: var(--ink);
+      color: var(--ink);
+      background: var(--bg-hover);
+    }
+
+    .ctrl-btn:disabled {
+      opacity: 0.36;
+      cursor: not-allowed;
+    }
+
+    .ctrl-btn.primary {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: var(--bg);
+    }
+
+    .ctrl-btn.primary:hover:not(:disabled) {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+    }
+
+    [data-theme="dark"] .ctrl-btn.primary:hover:not(:disabled) {
+      color: #141413;
+    }
+
+    .ctrl-btn svg {
+      width: 12px;
+      height: 12px;
+      fill: currentColor;
+    }
+
+    .speed-group {
+      display: inline-flex;
+      border: 1px solid var(--rule-strong);
+      border-radius: 4px;
+      overflow: hidden;
+      background: var(--bg-paper);
+    }
+
+    .speed-btn {
+      appearance: none;
+      border: none;
+      border-right: 1px solid var(--rule);
+      background: transparent;
+      color: var(--ink-muted);
+      height: 29px;
+      padding: 0 9px;
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      cursor: pointer;
+      transition: background-color 0.15s, color 0.15s;
+    }
+
+    .speed-btn:last-child {
+      border-right: none;
+    }
+
+    .speed-btn:hover {
+      color: var(--ink);
+    }
+
+    .speed-btn.active {
+      background: var(--bg-hover);
+      color: var(--accent);
+      font-weight: 700;
+    }
+
+    .progress-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      min-width: 175px;
+      max-width: 280px;
+    }
+
+    .step-segments {
+      flex: 1;
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+
+    .step-seg {
+      flex: 1;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--rule-strong);
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      transition: background-color 0.2s, transform 0.15s;
+    }
+
+    .step-seg:hover {
+      transform: scaleY(1.6);
+    }
+
+    .step-seg.done {
+      background: color-mix(in srgb, var(--accent) 55%, var(--rule));
+    }
+
+    .step-seg.current {
+      background: var(--accent);
+      height: 5px;
+    }
+
+    .step-counter {
+      font-family: var(--font-latin-serif);
+      font-style: italic;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.84rem;
+      color: var(--ink-secondary);
+      white-space: nowrap;
+      min-width: 68px;
+      text-align: right;
+    }
+
+    /* Editorial Footnote / Synced Explanation Strip */
+    .scene-explain {
+      padding: 16px 20px 18px;
+      background: var(--bg-code);
+      border-left: 2.5px solid var(--accent);
+      min-height: 92px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 4px;
+      transition: background-color 0.25s var(--ease);
+    }
+
+    .explain-head {
+      display: flex;
+      align-items: baseline;
+      gap: 10px;
+      font-family: var(--font-serif);
+      font-size: 0.94rem;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    .explain-step-tag {
+      font-family: var(--font-latin-serif);
+      font-style: italic;
+      font-size: 0.84rem;
+      color: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .explain-body {
+      margin: 0;
+      font-size: 0.88rem;
+      color: var(--ink-secondary);
+      line-height: 1.8;
+    }
+
+    /* Evolution Summary Table */
+    .summary-table-wrap {
+      overflow-x: auto;
+      border: 1.5px solid var(--rule-strong);
+      border-radius: 6px;
+      background: var(--bg-paper);
+    }
+
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.86rem;
+      line-height: 1.65;
+    }
+
+    .summary-table th,
+    .summary-table td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--rule);
+      vertical-align: top;
+    }
+
+    .summary-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .summary-table th {
+      font-family: var(--font-serif);
+      font-weight: 600;
+      color: var(--ink);
+      background: var(--bg-code);
+      border-bottom: 1px solid var(--rule-strong);
+      white-space: nowrap;
+    }
+
+    .summary-table td {
+      color: var(--ink-secondary);
+    }
+
+    .summary-table td:first-child {
+      font-family: var(--font-mono);
+      font-weight: 600;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+
+    /* Chapter Footer Navigation & Colophon (Matches Site) */
+    .chapter-nav {
+      margin-top: 12px;
+      padding-top: 24px;
+      border-top: 1px solid var(--rule);
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    .chapter-nav-link {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: color 0.2s var(--ease);
+    }
+
+    .chapter-nav-link.next {
+      text-align: right;
+      margin-left: auto;
+    }
+
+    .chapter-nav-label {
+      font-size: 0.76rem;
+      letter-spacing: 0.08em;
+      color: var(--ink-muted);
+    }
+
+    .chapter-nav-title {
+      font-family: var(--font-serif);
+      font-size: 1rem;
+      letter-spacing: 0.04em;
+      color: var(--ink-secondary);
+      transition: color 0.2s var(--ease);
+    }
+
+    .chapter-nav-link:hover .chapter-nav-title {
+      color: var(--accent);
+    }
+
+    .colophon {
+      padding: 28px 0 40px;
+      border-top: 1px solid var(--rule);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.78rem;
+      letter-spacing: 0.06em;
+      color: var(--ink-muted);
+    }
+
+    .colophon-latin {
+      font-family: var(--font-latin-serif);
+      font-style: italic;
+    }
+
+    /* ========================================================================
+       Responsive Breakpoints
+       ======================================================================== */
+    @media (max-width: 1120px) {
+      .doc-layout {
+        grid-template-columns: 196px minmax(0, 1fr);
+        gap: 28px;
+      }
+    }
+
+    @media (max-width: 920px) {
+      .doc-layout {
+        grid-template-columns: 1fr;
+        gap: 28px;
+      }
+
+      .toc-sidebar {
+        position: static;
+        max-height: none;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--rule);
+      }
+
+      .toc-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 14px;
+        border-left: none;
+      }
+
+      .toc-link {
+        padding: 4px 0;
+        margin-left: 0;
+        border-left: none;
+        border-bottom: 1.5px solid transparent;
+      }
+
+      .toc-link.active {
+        border-left-color: transparent;
+        border-bottom-color: var(--accent);
+      }
+    }
+
+    @media (max-width: 560px) {
+      .page-wrap {
+        padding: 0 18px;
+      }
+
+      .masthead {
+        padding: 24px 0 16px;
+      }
+
+      .scene-badges {
+        margin-left: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page-wrap">
+    <!-- Minimal Editorial Masthead -->
+    <header class="masthead">
+      <a href="../index.html" class="masthead-brand">SCPZ24</a>
+      <button id="theme-toggle" class="theme-btn" type="button" aria-label="切换明暗主题">
+        <span class="theme-dot" aria-hidden="true"></span>
+        <span id="theme-label">深色</span>
+      </button>
+    </header>
+
+    <!-- Breadcrumb -->
+    <nav class="crumb" aria-label="页面路径">
+      <a href="../index.html">主页</a>
+      <span class="slash">/</span>
+      <a href="./index.html">图解Go语言</a>
+      <span class="slash">/</span>
+      <span>Go GC解析</span>
+    </nav>
+
+    <!-- Editorial Title Block -->
+    <section class="title-block">
+      <p class="kicker">图解Go语言 · 02 · Interactive Sketch Notes</p>
+      <h1>Go GC解析：从标记-清除到三色并发与混合写屏障</h1>
+      <p class="hero-lead">
+        Go 垃圾回收（Garbage Collection）的演进核心，是一部不断压缩 <strong>STW（Stop The World）</strong> 暂停时间的优化史。下面通过手绘笔记式的 <strong>10 个独立分步交互动图</strong>，系统拆解 <code>Go ≤ V1.3</code> 标记-清除与 STW 提前优化、<code>Go V1.5</code> 三色并发标记与无 STW 漏标危机、<strong>强/弱三色不变式</strong>、<strong>插入写屏障</strong>（栈堆差异与 STW 重扫栈）、<strong>删除写屏障</strong>（起始快照与浮动垃圾），以及 <code>Go V1.8</code> <strong>混合写屏障</strong>的初始化机制与<strong>堆→栈、栈→栈、堆→堆、栈→堆</strong>四大核心迁移场景。
+      </p>
+    </section>
+
+    <div class="book-rule" aria-hidden="true"></div>
+
+    <!-- Main Two-Column Reading Layout: Sticky Left TOC + Content -->
+    <div class="doc-layout">
+      <aside class="toc-sidebar" aria-label="正文目录">
+        <div class="toc-heading">
+          <span>目录</span>
+          <span class="en">Contents</span>
+        </div>
+        <ul class="toc-list" id="toc-list">
+          <li><a class="toc-link active" href="#legend"><span class="toc-num">00</span><span>图例说明</span></a></li>
+          <li><a class="toc-link" href="#scene-1"><span class="toc-num">01</span><span>V1.3 标记-清除与 STW</span></a></li>
+          <li><a class="toc-link" href="#scene-2"><span class="toc-num">02</span><span>V1.5 三色并发标记法</span></a></li>
+          <li><a class="toc-link" href="#scene-3"><span class="toc-num">03</span><span>无 STW 漏标与不变式</span></a></li>
+          <li><a class="toc-link" href="#scene-4"><span class="toc-num">04</span><span>V1.5 插入写屏障（堆/栈）</span></a></li>
+          <li><a class="toc-link" href="#scene-5"><span class="toc-num">05</span><span>删除写屏障与浮动垃圾</span></a></li>
+          <li><a class="toc-link" href="#scene-6"><span class="toc-num">06</span><span>V1.8 混合写屏障初始化</span></a></li>
+          <li><a class="toc-link" href="#scene-7"><span class="toc-num">07</span><span>混合屏障 · 场景一（堆→栈）</span></a></li>
+          <li><a class="toc-link" href="#scene-8"><span class="toc-num">08</span><span>混合屏障 · 场景二（栈→栈）</span></a></li>
+          <li><a class="toc-link" href="#scene-9"><span class="toc-num">09</span><span>混合屏障 · 场景三（堆→堆）</span></a></li>
+          <li><a class="toc-link" href="#scene-10"><span class="toc-num">10</span><span>混合屏障 · 场景四（栈→堆）</span></a></li>
+          <li><a class="toc-link" href="#summary"><span class="toc-num">11</span><span>演进总览对比</span></a></li>
+        </ul>
+      </aside>
+
+      <main class="content-col">
+        <!-- Global Legend Section -->
+        <section class="legend-section" id="legend">
+          <div class="section-caption">
+            <h2>图例说明</h2>
+            <span class="en">Visual Grammar · Legend</span>
+          </div>
+          <div class="legend-grid" id="legend-grid"></div>
+        </section>
+
+        <!-- 10 Interactive Scenarios Container -->
+        <div id="scenes-root" style="display:flex; flex-direction:column; gap:52px;"></div>
+
+        <!-- Evolution Summary Table -->
+        <section class="summary-section" id="summary">
+          <div class="section-caption">
+            <h2>Go GC 演进总览对比</h2>
+            <span class="en">Version Evolution · Summary</span>
+          </div>
+          <div class="summary-table-wrap">
+            <table class="summary-table">
+              <thead>
+                <tr>
+                  <th>Go 版本</th>
+                  <th>核心算法 / 机制</th>
+                  <th>栈空间策略</th>
+                  <th>堆空间策略</th>
+                  <th>STW 与核心特点</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Go &lt; V1.3</td>
+                  <td>普通标记-清除<br/><code>Mark &amp; Sweep</code></td>
+                  <td>全程暂停扫描</td>
+                  <td>全程暂停标记与清除</td>
+                  <td><strong>STW 包裹整个 Mark + Sweep</strong>；停顿极长，易产生堆内存碎片。</td>
+                </tr>
+                <tr>
+                  <td>Go V1.3</td>
+                  <td>标记-清除（STW 提前释放）</td>
+                  <td>Mark 期间 STW</td>
+                  <td>Mark 后解除 STW，Sweep 并发</td>
+                  <td>减少 Sweep 阶段的停顿，但 <strong>Mark 全程仍需 STW</strong>，大堆延迟依旧很高。</td>
+                </tr>
+                <tr>
+                  <td>Go V1.5</td>
+                  <td>三色并发标记 + <strong>插入写屏障</strong>（强三色不变式）</td>
+                  <td><strong>不开启屏障</strong>；标记结束后 <strong>STW 重扫栈</strong></td>
+                  <td>开启插入写屏障（新增引用时新下游染灰）</td>
+                  <td>大幅压缩 STW；但结束时仍需 <strong>10~100ms STW 重扫栈区</strong>，防止栈上漏标。</td>
+                </tr>
+                <tr>
+                  <td>对比方案</td>
+                  <td>三色并发标记 + <strong>删除写屏障</strong>（弱三色不变式）</td>
+                  <td>GC 开始时 STW 扫描栈记录起始快照</td>
+                  <td>开启删除写屏障（断开旧引用前旧下游染灰）</td>
+                  <td>结束无需重扫栈；但<strong>回收精度低</strong>，断链对象会作为浮动垃圾活过本轮 GC。</td>
+                </tr>
+                <tr>
+                  <td>Go V1.8+</td>
+                  <td>三色并发标记 + <strong>混合写屏障</strong>（变形弱三色不变式）</td>
+                  <td><strong>不开启屏障</strong>；初始并发扫栈全黑，GC 期间栈上新建对象直接为黑</td>
+                  <td>开启混合写屏障（删旧下游染灰 + 添新下游染灰）</td>
+                  <td>彻底消除结束时的栈 re-scan，<strong>几乎无需长时间 STW</strong>（亚毫秒级），兼顾效率与安全。</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <!-- Chapter Navigation -->
+        <nav class="chapter-nav" aria-label="篇目导航">
+          <a href="./gmp-cases.html" class="chapter-nav-link prev">
+            <span class="chapter-nav-label">上一篇</span>
+            <span class="chapter-nav-title">&larr; GMP调度案例</span>
+          </a>
+          <a href="./index.html" class="chapter-nav-link next">
+            <span class="chapter-nav-label">返回目录</span>
+            <span class="chapter-nav-title">图解Go语言 &rarr;</span>
+          </a>
+        </nav>
+      </main>
+    </div>
+
+    <!-- Colophon Footer -->
+    <footer class="colophon">
+      <span>SCPZ24.github.io</span>
+      <span class="colophon-latin">Go Illustrated · 02</span>
+    </footer>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+
+    /* ========================================================================
+       1. Theme Management (Synced with scpz24-theme across the whole site)
+       ======================================================================== */
+    const THEME_KEY = "scpz24-theme";
+    const rootEl = document.documentElement;
+
+    function applyTheme(theme) {
+      rootEl.setAttribute("data-theme", theme);
+      const label = document.getElementById("theme-label");
+      if (label) label.textContent = theme === "dark" ? "浅色" : "深色";
+    }
+
+    (function initTheme() {
+      const saved = localStorage.getItem(THEME_KEY);
+      applyTheme(saved === "dark" ? "dark" : "light");
+      const btn = document.getElementById("theme-toggle");
+      if (btn) {
+        btn.addEventListener("click", () => {
+          const next = rootEl.getAttribute("data-theme") === "dark" ? "light" : "dark";
+          localStorage.setItem(THEME_KEY, next);
+          applyTheme(next);
+        });
+      }
+    })();
+
+    /* ========================================================================
+       2. SVG Hand-Drawn Primitives & Precision Geometry Helpers
+       ======================================================================== */
+    const SVG_NS = "http://www.w3.org/2000/svg";
+
+    function el(tag, attrs = {}, parent = null) {
+      const node = document.createElementNS(SVG_NS, tag);
+      for (const [k, v] of Object.entries(attrs)) {
+        if (v !== undefined && v !== null) node.setAttribute(k, String(v));
+      }
+      if (parent) parent.appendChild(node);
+      return node;
+    }
+
+    function setPos(node, x, y, opacity = 1) {
+      node.style.transform = `translate(${x}px, ${y}px)`;
+      node.style.opacity = String(opacity);
+    }
+
+    function measureTextWidth(text, fontSize = 10) {
+      let w = 0;
+      for (const ch of String(text || "")) {
+        w += ch.charCodeAt(0) > 127 ? fontSize * 1.05 : fontSize * 0.64;
+      }
+      return w;
+    }
+
+    const Geom = {
+      circleEdge(cx, cy, r, tx, ty, pad = 2) {
+        const dx = tx - cx, dy = ty - cy;
+        const d = Math.hypot(dx, dy) || 1;
+        return { x: cx + (dx / d) * (r + pad), y: cy + (dy / d) * (r + pad) };
+      },
+      rectEdge(cx, cy, w, h, tx, ty, pad = 2) {
+        const dx = tx - cx, dy = ty - cy;
+        if (dx === 0 && dy === 0) return { x: cx, y: cy };
+        const hw = w / 2 + pad, hh = h / 2 + pad;
+        const s = Math.max(Math.abs(dx) / hw, Math.abs(dy) / hh) || 1;
+        return { x: cx + dx / s, y: cy + dy / s };
+      },
+      connect(a, b, padA = 3, padB = 6) {
+        const edge = (item, ox, oy, pad) => {
+          if (item.type === "rect") return Geom.rectEdge(item.x, item.y, item.w || 88, item.h || 50, ox, oy, pad);
+          return Geom.circleEdge(item.x, item.y, item.r || 24, ox, oy, pad);
+        };
+        const p1 = edge(a, b.x, b.y, padA);
+        const p2 = edge(b, a.x, a.y, padB);
+        return { x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y };
+      }
+    };
+
+    function addSvgDefs(svg, prefix) {
+      const defs = el("defs", {}, svg);
+
+      const flt = el("filter", {
+        id: `${prefix}-sketch`,
+        filterUnits: "userSpaceOnUse",
+        x: "-420", y: "-200", width: "1400", height: "900"
+      }, defs);
+      el("feTurbulence", {
+        type: "fractalNoise",
+        baseFrequency: "0.032",
+        numOctaves: "2",
+        seed: "11",
+        result: "noise"
+      }, flt);
+      el("feDisplacementMap", {
+        in: "SourceGraphic",
+        in2: "noise",
+        scale: "1.45",
+        xChannelSelector: "R",
+        yChannelSelector: "G"
+      }, flt);
+
+      const colors = {
+        slate: "#57534e",
+        blue: "#3b82f6",
+        amber: "#d97706",
+        green: "#10b981",
+        teal: "#0f766e",
+        purple: "#7c3aed",
+        red: "#dc2626",
+        muted: "#8c867c"
+      };
+      for (const [name, color] of Object.entries(colors)) {
+        const marker = el("marker", {
+          id: `${prefix}-arr-${name}`,
+          viewBox: "0 0 10 10",
+          refX: "8.2",
+          refY: "5",
+          markerWidth: "6.5",
+          markerHeight: "6.5",
+          orient: "auto-start-reverse"
+        }, defs);
+        el("path", {
+          d: "M 1.5 1.8 L 8.5 5 L 1.5 8.2",
+          fill: "none",
+          stroke: color,
+          "stroke-width": "1.75",
+          "stroke-linecap": "round",
+          "stroke-linejoin": "round"
+        }, marker);
+      }
+
+      return {
+        marker: (name) => `url(#${prefix}-arr-${name})`,
+        sketch: `url(#${prefix}-sketch)`
+      };
+    }
+
+    /**
+     * Standardized GC Visual Primitives (Hand-Drawn Minimalist Notebook Style)
+     */
+    const Primitives = {
+      /** Memory Zone Container (Stack / Heap / Panel) */
+      createZone(parent, { x, y, w, h, title, subtitle = "", color = "#3b82f6", fill = "rgba(59,130,246,0.03)", dashed = true, sketchUrl = "" }) {
+        const g = el("g", {}, parent);
+        const rect = el("rect", {
+          x, y, width: w, height: h, rx: 8,
+          fill, stroke: color, "stroke-width": 1.6,
+          "stroke-dasharray": dashed ? "6 4" : undefined,
+          filter: sketchUrl || undefined
+        }, g);
+        const titleEl = el("text", {
+          x: x + 13, y: y + 19,
+          "font-size": 11.5, "font-weight": 600,
+          "font-family": "var(--font-serif)", fill: color
+        }, g);
+        titleEl.textContent = title;
+
+        let subEl = null;
+        if (subtitle) {
+          subEl = el("text", {
+            x: x + w - 12, y: y + 19, "text-anchor": "end",
+            "font-size": 10, "font-weight": 600,
+            "font-family": "var(--font-mono)", fill: color, opacity: 0.85
+          }, g);
+          subEl.textContent = subtitle;
+        }
+
+        return {
+          el: g,
+          rect,
+          setHighlight(on, strokeColor) {
+            rect.setAttribute("stroke-width", on ? "2.4" : "1.6");
+            if (strokeColor) rect.setAttribute("stroke", strokeColor);
+          }
+        };
+      },
+
+      /** GC Root Box */
+      createRoot(parent, label, x, y, { w = 88, h = 50, sub = "根节点", sketchUrl = "" } = {}) {
+        const g = el("g", { class: "gc-node" }, parent);
+        const glow = el("rect", {
+          x: -w / 2 - 5, y: -h / 2 - 5, width: w + 10, height: h + 10, rx: 11,
+          fill: "none", stroke: "#24576b", "stroke-width": 2.2,
+          "stroke-dasharray": "4 3", opacity: 0,
+          filter: sketchUrl || undefined
+        }, g);
+        el("rect", {
+          x: -w / 2, y: -h / 2, width: w, height: h, rx: 8,
+          fill: "var(--gc-root-fill)", stroke: "var(--gc-root-stroke)", "stroke-width": 2,
+          filter: sketchUrl || undefined
+        }, g);
+        const t1 = el("text", {
+          x: 0, y: sub ? -2 : 4.5, "text-anchor": "middle",
+          "font-size": 12, "font-weight": 700,
+          "font-family": "var(--font-mono)", fill: "#ffffff"
+        }, g);
+        t1.textContent = label;
+        if (sub) {
+          const t2 = el("text", {
+            x: 0, y: 14, "text-anchor": "middle",
+            "font-size": 9.5, "font-family": "var(--font-sans)",
+            fill: "rgba(255,255,255,0.82)"
+          }, g);
+          t2.textContent = sub;
+        }
+        setPos(g, x, y, 1);
+        return {
+          el: g,
+          pos: { type: "rect", x, y, w, h },
+          setState({ active = false, opacity = 1 } = {}) {
+            setPos(g, x, y, opacity);
+            glow.setAttribute("opacity", active ? "1" : "0");
+            glow.classList.toggle("pulse-glow", Boolean(active));
+          }
+        };
+      },
+
+      /**
+       * GC Memory Object Node
+       * color: "white" | "gray" | "black" | "marked" | "swept"
+       */
+      createObj(parent, label, initX, initY, { r = 24, sketchUrl = "" } = {}) {
+        const g = el("g", { class: "gc-node" }, parent);
+
+        const halo = el("circle", {
+          cx: 0, cy: 0, r: r + 7,
+          fill: "none", stroke: "#d97706", "stroke-width": 2.2,
+          "stroke-dasharray": "4 3", opacity: 0
+        }, g);
+
+        const circ = el("circle", {
+          cx: 0, cy: 0, r,
+          fill: "var(--gc-white-fill)",
+          stroke: "var(--gc-white-stroke)",
+          "stroke-width": 2.1,
+          class: "gc-shape",
+          filter: sketchUrl || undefined
+        }, g);
+
+        const text = el("text", {
+          x: 0, y: 4.5, "text-anchor": "middle",
+          "font-size": 12.5, "font-weight": 700,
+          "font-family": "var(--font-sans)",
+          fill: "var(--gc-white-text)"
+        }, g);
+        text.textContent = label;
+
+        // Sweep cross overlay
+        const crossG = el("g", { class: "gc-fade", opacity: 0 }, g);
+        el("line", { x1: -r * 0.62, y1: -r * 0.62, x2: r * 0.62, y2: r * 0.62, stroke: "#dc2626", "stroke-width": 2.6, "stroke-linecap": "round" }, crossG);
+        el("line", { x1: r * 0.62, y1: -r * 0.62, x2: -r * 0.62, y2: r * 0.62, stroke: "#dc2626", "stroke-width": 2.6, "stroke-linecap": "round" }, crossG);
+
+        // Checkmark badge (for V1.3 mark phase)
+        const checkG = el("g", { transform: `translate(${r * 0.72}, ${-r * 0.72})`, class: "gc-fade", opacity: 0 }, g);
+        el("circle", { cx: 0, cy: 0, r: 9, fill: "#10b981", stroke: "#047857", "stroke-width": 1.3 }, checkG);
+        el("path", { d: "M -3.5 0.5 L -1 3 L 4 -2.5", fill: "none", stroke: "#ffffff", "stroke-width": 1.8, "stroke-linecap": "round", "stroke-linejoin": "round" }, checkG);
+
+        // Shield badge (when protected by write barrier)
+        const shieldG = el("g", { transform: `translate(${r * 0.78}, ${-r * 0.76})`, class: "gc-fade", opacity: 0 }, g);
+        el("path", {
+          d: "M 0 -9 L 7.5 -5.5 L 7.5 1 C 7.5 5.8 3.8 8.5 0 10 C -3.8 8.5 -7.5 5.8 -7.5 1 L -7.5 -5.5 Z",
+          fill: "#7c3aed", stroke: "#ffffff", "stroke-width": 1.3
+        }, shieldG);
+        const shieldTx = el("text", {
+          x: 0, y: 3, "text-anchor": "middle",
+          "font-size": 8.5, "font-weight": 700, fill: "#ffffff"
+        }, shieldG);
+        shieldTx.textContent = "屏";
+
+        // Micro note tag
+        const tagG = el("g", { transform: `translate(0, ${r + 15})`, class: "gc-fade", opacity: 0 }, g);
+        const tagRect = el("rect", {
+          x: -36, y: -9, width: 72, height: 18, rx: 4,
+          fill: "#f3f1ea", stroke: "#8c867c", "stroke-width": 1.1,
+          filter: sketchUrl || undefined
+        }, tagG);
+        const tagText = el("text", {
+          x: 0, y: 3.5, "text-anchor": "middle",
+          "font-size": 9.5, "font-weight": 700,
+          "font-family": "var(--font-mono)", fill: "#44403c"
+        }, tagG);
+
+        setPos(g, initX, initY, 1);
+
+        const COLOR_MAP = {
+          white:  { fill: "var(--gc-white-fill)", stroke: "var(--gc-white-stroke)", text: "var(--gc-white-text)", dash: "" },
+          gray:   { fill: "var(--gc-gray-fill)",  stroke: "var(--gc-gray-stroke)",  text: "var(--gc-gray-text)",  dash: "" },
+          black:  { fill: "var(--gc-black-fill)", stroke: "var(--gc-black-stroke)", text: "var(--gc-black-text)", dash: "" },
+          marked: { fill: "var(--gc-mark-fill)",  stroke: "var(--gc-mark-stroke)",  text: "#ffffff",              dash: "" },
+          swept:  { fill: "var(--gc-white-fill)", stroke: "#dc2626",                text: "#dc2626",              dash: "4 3" }
+        };
+
+        return {
+          el: g,
+          pos: { type: "circle", x: initX, y: initY, r },
+          setState({
+            x = initX, y = initY,
+            color = "white",
+            opacity = 1,
+            highlight = false,
+            haloColor = "#d97706",
+            check = false,
+            shield = false,
+            tag = "",
+            tagColor = "slate",
+            tagY = r + 15
+          } = {}) {
+            const isSwept = color === "swept";
+            const finalOp = isSwept ? Math.min(opacity, 0.34) : opacity;
+            setPos(g, x, y, finalOp);
+            const st = COLOR_MAP[color] || COLOR_MAP.white;
+            circ.setAttribute("fill", st.fill);
+            circ.setAttribute("stroke", st.stroke);
+            if (st.dash) circ.setAttribute("stroke-dasharray", st.dash);
+            else circ.removeAttribute("stroke-dasharray");
+            text.setAttribute("fill", st.text);
+
+            halo.setAttribute("stroke", haloColor);
+            halo.setAttribute("opacity", highlight ? "1" : "0");
+            halo.classList.toggle("pulse-glow", Boolean(highlight));
+            crossG.setAttribute("opacity", isSwept ? "1" : "0");
+            checkG.setAttribute("opacity", check ? "1" : "0");
+            shieldG.setAttribute("opacity", shield ? "1" : "0");
+
+            if (tag) {
+              const palette = {
+                green:  { bg: "#edf6ef", bd: "#059669", tx: "#065f46" },
+                amber:  { bg: "#fbf5e6", bd: "#d97706", tx: "#92400e" },
+                red:    { bg: "#fbeeed", bd: "#dc2626", tx: "#991b1b" },
+                purple: { bg: "#f4f0fa", bd: "#7c3aed", tx: "#5b21b6" },
+                blue:   { bg: "#eef4fb", bd: "#2563eb", tx: "#1e40af" },
+                teal:   { bg: "#ebf5f4", bd: "#0f766e", tx: "#115e59" },
+                slate:  { bg: "#f3f1ea", bd: "#78716c", tx: "#44403c" }
+              }[tagColor] || { bg: "#f3f1ea", bd: "#78716c", tx: "#44403c" };
+              const w = Math.max(54, Math.ceil(measureTextWidth(tag, 9.5) + 16));
+              tagRect.setAttribute("x", -w / 2);
+              tagRect.setAttribute("width", w);
+              tagRect.setAttribute("fill", palette.bg);
+              tagRect.setAttribute("stroke", palette.bd);
+              tagText.setAttribute("fill", palette.tx);
+              tagText.textContent = tag;
+              tagG.setAttribute("transform", `translate(0, ${tagY})`);
+              tagG.setAttribute("opacity", "1");
+            } else {
+              tagG.setAttribute("opacity", "0");
+            }
+          }
+        };
+      },
+
+      /** Hand-Drawn Connector Line / Arrow with midpoint note pill & optional cut mark */
+      createConnector(parent, { color = "#57534e", width = 2, dashed = false, markerEnd = "", flow = false, sketchUrl = "" } = {}) {
+        const g = el("g", { class: "gc-fade", opacity: 1 }, parent);
+        const path = el("path", {
+          d: "M 0 0 L 0 0",
+          fill: "none",
+          stroke: color,
+          "stroke-width": width,
+          "stroke-dasharray": dashed ? "6 4" : undefined,
+          "stroke-linecap": "round",
+          "marker-end": markerEnd || undefined,
+          class: flow ? "dash-flow" : "",
+          filter: sketchUrl || undefined
+        }, g);
+
+        const cutG = el("g", { opacity: 0 }, g);
+        el("circle", { cx: 0, cy: 0, r: 9.5, fill: "#fbeeed", stroke: "#dc2626", "stroke-width": 1.4 }, cutG);
+        el("line", { x1: -4, y1: -4, x2: 4, y2: 4, stroke: "#dc2626", "stroke-width": 2, "stroke-linecap": "round" }, cutG);
+        el("line", { x1: 4, y1: -4, x2: -4, y2: 4, stroke: "#dc2626", "stroke-width": 2, "stroke-linecap": "round" }, cutG);
+
+        const lblG = el("g", { opacity: 0 }, g);
+        const lblBg = el("rect", {
+          x: -28, y: -10, width: 56, height: 20, rx: 4,
+          fill: "var(--svg-pill-bg)", stroke: color, "stroke-width": 1.1,
+          filter: sketchUrl || undefined
+        }, lblG);
+        const lblTx = el("text", {
+          x: 0, y: 3.5, "text-anchor": "middle",
+          "font-size": 9.8, "font-weight": 600,
+          "font-family": "var(--font-mono)", fill: color
+        }, lblG);
+
+        return {
+          el: g,
+          set({ x1, y1, x2, y2, curve = 0, opacity = 1, label = "", labelDy = 0, cut = false, color: c, dashed: d, width: w, markerEnd: me, flow: fl }) {
+            g.setAttribute("opacity", String(opacity));
+            if (c) {
+              path.setAttribute("stroke", c);
+              lblBg.setAttribute("stroke", c);
+              lblTx.setAttribute("fill", c);
+            }
+            if (w !== undefined) path.setAttribute("stroke-width", String(w));
+            if (d !== undefined) {
+              if (d) path.setAttribute("stroke-dasharray", "6 4");
+              else path.removeAttribute("stroke-dasharray");
+            }
+            if (fl !== undefined) {
+              path.setAttribute("class", fl ? "dash-flow" : "");
+            }
+            if (me !== undefined) {
+              if (me) path.setAttribute("marker-end", me);
+              else path.removeAttribute("marker-end");
+            }
+            const mx = (x1 + x2) / 2;
+            const my = (y1 + y2) / 2;
+            let lx = mx, ly = my;
+            if (curve !== 0) {
+              const dx = x2 - x1, dy = y2 - y1;
+              const len = Math.hypot(dx, dy) || 1;
+              const nx = -dy / len, ny = dx / len;
+              const cx = mx + nx * curve, cy = my + ny * curve;
+              path.setAttribute("d", `M ${x1.toFixed(1)} ${y1.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}`);
+              lx = 0.25 * x1 + 0.5 * cx + 0.25 * x2;
+              ly = 0.25 * y1 + 0.5 * cy + 0.25 * y2;
+            } else {
+              path.setAttribute("d", `M ${x1.toFixed(1)} ${y1.toFixed(1)} L ${x2.toFixed(1)} ${y2.toFixed(1)}`);
+            }
+            if (cut) {
+              cutG.setAttribute("transform", `translate(${lx.toFixed(1)}, ${ly.toFixed(1)})`);
+              cutG.setAttribute("opacity", "1");
+            } else {
+              cutG.setAttribute("opacity", "0");
+            }
+            if (label) {
+              const bw = Math.max(44, Math.ceil(measureTextWidth(label, 9.8) + 16));
+              lblBg.setAttribute("x", -bw / 2);
+              lblBg.setAttribute("width", bw);
+              lblTx.textContent = label;
+              const finalLy = ly + (cut ? -20 : labelDy);
+              lblG.setAttribute("transform", `translate(${lx.toFixed(1)}, ${finalLy.toFixed(1)})`);
+              lblG.setAttribute("opacity", "1");
+            } else {
+              lblG.setAttribute("opacity", "0");
+            }
+          }
+        };
+      },
+
+      /** Paper Margin-Note Callout Badge */
+      createCallout(parent, { x, y, text = "", color = "#24576b", bg = "#f3f1ea", maxW = 240, font = "sans", sketchUrl = "" }) {
+        const g = el("g", { class: "gc-node" }, parent);
+        const rect = el("rect", {
+          x: -maxW / 2, y: -14, width: maxW, height: 28, rx: 5,
+          fill: bg, stroke: color, "stroke-width": 1.3, "stroke-dasharray": "4 2.5",
+          filter: sketchUrl || undefined
+        }, g);
+        const tx = el("text", {
+          x: 0, y: 4, "text-anchor": "middle",
+          "font-size": font === "mono" ? 10.5 : 11, "font-weight": 600,
+          "font-family": font === "mono" ? "var(--font-mono)" : "var(--font-sans)", fill: color
+        }, g);
+        tx.textContent = text;
+        setPos(g, x, y, 0);
+
+        return {
+          el: g,
+          set({ x: nx = x, y: ny = y, text: nt, opacity = 1, color: nc, bg: nbg, width: nw, solid = false }) {
+            setPos(g, nx, ny, opacity);
+            if (nt !== undefined) tx.textContent = nt;
+            if (nc) { rect.setAttribute("stroke", nc); tx.setAttribute("fill", nc); }
+            if (nbg) rect.setAttribute("fill", nbg);
+            if (solid) rect.removeAttribute("stroke-dasharray");
+            else rect.setAttribute("stroke-dasharray", "4 2.5");
+            const curText = nt !== undefined ? nt : tx.textContent;
+            const autoW = Math.ceil(measureTextWidth(curText, 11) + 30);
+            const finalW = Math.max(nw || maxW, autoW);
+            rect.setAttribute("x", -finalW / 2);
+            rect.setAttribute("width", finalW);
+          }
+        };
+      },
+
+      /** Top STW / Concurrency Runtime Banner */
+      createStwBanner(parent, x, y, sketchUrl = "") {
+        const callout = Primitives.createCallout(parent, {
+          x, y, text: "", color: "#065f46", bg: "#edf6ef", maxW: 310, sketchUrl
+        });
+        return {
+          setMode(mode, customText) {
+            const PRESETS = {
+              running: { text: customText || "▶ 用户程序并发运行（无 STW）", color: "#065f46", bg: "#edf6ef", solid: true },
+              stw:     { text: customText || "⏸ STW · Stop The World（用户业务全部暂停）", color: "#991b1b", bg: "#fbeeed", solid: true },
+              danger:  { text: customText || "⚠ 危险：无 STW 且无写屏障，并发修改中", color: "#991b1b", bg: "#fbeeed", solid: true },
+              barrier: { text: customText || "🛡 并发标记中 · 写屏障保护已开启（无 STW）", color: "#5b21b6", bg: "#f4f0fa", solid: true },
+              sweep:   { text: customText || "🧹 并发清除阶段（Sweep · 用户程序可恢复运行）", color: "#1e40af", bg: "#eef4fb", solid: true }
+            };
+            const p = PRESETS[mode] || PRESETS.running;
+            callout.set({ x, y, text: p.text, color: p.color, bg: p.bg, opacity: 1, solid: p.solid });
+          }
+        };
+      },
+
+      /** Animated 3-Column Tri-color Mark Set Table (White | Gray | Black) */
+      createMarkTable(parent, { x, y, w = 276, h = 356, items = [], sketchUrl = "" }) {
+        const g = el("g", {}, parent);
+        Primitives.createZone(g, {
+          x, y, w, h, title: "三色标记表（Mark Sets）",
+          color: "#57534e", fill: "var(--svg-queue-bg)", dashed: false, sketchUrl
+        });
+
+        const colW = (w - 24) / 3;
+        const cols = [
+          { key: "white", title: "白色", color: "#64748b", fill: "var(--svg-slot-bg)" },
+          { key: "gray",  title: "灰色", color: "#d97706", fill: "rgba(148,163,184,0.12)" },
+          { key: "black", title: "黑色", color: "var(--svg-text)", fill: "rgba(28,27,25,0.06)" }
+        ];
+        const colCenters = {};
+        cols.forEach((c, i) => {
+          const cx = x + 12 + i * colW + colW / 2;
+          colCenters[c.key] = cx;
+          el("rect", {
+            x: x + 12 + i * colW + 3, y: y + 32, width: colW - 6, height: h - 44, rx: 5,
+            fill: c.fill, stroke: "var(--svg-slot-border)", "stroke-width": 1.1,
+            filter: sketchUrl || undefined
+          }, g);
+          const hd = el("text", {
+            x: cx, y: y + 50, "text-anchor": "middle",
+            "font-size": 11, "font-weight": 700,
+            "font-family": "var(--font-serif)", fill: c.color
+          }, g);
+          hd.textContent = c.title;
+          el("line", {
+            x1: x + 18 + i * colW, y1: y + 58, x2: x + 12 + (i + 1) * colW - 6, y2: y + 58,
+            stroke: "var(--svg-slot-border)", "stroke-width": 1
+          }, g);
+        });
+
+        const chips = {};
+        items.forEach((name, idx) => {
+          const cg = el("g", { class: "gc-node" }, g);
+          const rct = el("rect", {
+            x: -26, y: -12, width: 52, height: 24, rx: 12,
+            fill: "var(--gc-white-fill)", stroke: "var(--gc-white-stroke)", "stroke-width": 1.6,
+            class: "gc-shape"
+          }, cg);
+          const tx = el("text", {
+            x: 0, y: 4, "text-anchor": "middle",
+            "font-size": 10.5, "font-weight": 700,
+            "font-family": "var(--font-mono)", fill: "var(--gc-white-text)"
+          }, cg);
+          tx.textContent = name;
+          setPos(cg, colCenters.white, y + 80 + idx * 34, 1);
+          chips[name] = { g: cg, rct, tx };
+        });
+
+        return {
+          setSets({ white = [], gray = [], black = [], swept = [] }) {
+            const place = (list, colKey, style) => {
+              list.forEach((name, idx) => {
+                const ch = chips[name];
+                if (!ch) return;
+                setPos(ch.g, colCenters[colKey], y + 80 + idx * 34, style.opacity ?? 1);
+                ch.rct.setAttribute("fill", style.fill);
+                ch.rct.setAttribute("stroke", style.stroke);
+                if (style.dash) ch.rct.setAttribute("stroke-dasharray", style.dash);
+                else ch.rct.removeAttribute("stroke-dasharray");
+                ch.tx.setAttribute("fill", style.text);
+              });
+            };
+            place(white, "white", { fill: "var(--gc-white-fill)", stroke: "var(--gc-white-stroke)", text: "var(--gc-white-text)", opacity: 1 });
+            place(gray,  "gray",  { fill: "var(--gc-gray-fill)",  stroke: "var(--gc-gray-stroke)",  text: "var(--gc-gray-text)",  opacity: 1 });
+            place(black, "black", { fill: "var(--gc-black-fill)", stroke: "var(--gc-black-stroke)", text: "var(--gc-black-text)", opacity: 1 });
+            swept.forEach((name, idx) => {
+              const ch = chips[name];
+              if (!ch) return;
+              setPos(ch.g, colCenters.white, y + 80 + (white.length + idx) * 34, 0.28);
+              ch.rct.setAttribute("fill", "var(--gc-white-fill)");
+              ch.rct.setAttribute("stroke", "#dc2626");
+              ch.rct.setAttribute("stroke-dasharray", "3 2");
+              ch.tx.setAttribute("fill", "#dc2626");
+            });
+          }
+        };
+      }
+    };
+
+    /* ========================================================================
+       3. Render Global Legend Section (10 Hand-Drawn Standardized GC Entities)
+       ======================================================================== */
+    (function buildGlobalLegend() {
+      const grid = document.getElementById("legend-grid");
+      const sketchDef = `<defs><filter id="gc-lg-sk" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" seed="9"/><feDisplacementMap in="SourceGraphic" scale="1.2"/></filter></defs>`;
+
+      const items = [
+        {
+          name: "白色对象（White）",
+          desc: "尚未被 GC 访问的潜在垃圾；标记结束仍为白色则会被清除回收",
+          svg: `<svg width="60" height="48" viewBox="0 0 62 50">${sketchDef}
+            <circle cx="31" cy="25" r="16" fill="var(--gc-white-fill)" stroke="var(--gc-white-stroke)" stroke-width="2" filter="url(#gc-lg-sk)"/>
+            <text x="31" y="29" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--gc-white-text)">Obj</text>
+          </svg>`
+        },
+        {
+          name: "灰色对象（Gray）",
+          desc: "自身已可达，但下游引用尚未扫描完毕；波前推进与屏障保护核心",
+          svg: `<svg width="60" height="48" viewBox="0 0 62 50">${sketchDef}
+            <circle cx="31" cy="25" r="20.5" fill="none" stroke="#d97706" stroke-width="1.6" stroke-dasharray="3.5 2.5"/>
+            <circle cx="31" cy="25" r="15.5" fill="var(--gc-gray-fill)" stroke="var(--gc-gray-stroke)" stroke-width="1.8" filter="url(#gc-lg-sk)"/>
+            <text x="31" y="29" text-anchor="middle" font-size="10.5" font-weight="700" fill="#ffffff">Obj</text>
+          </svg>`
+        },
+        {
+          name: "黑色对象（Black）",
+          desc: "自身及下游引用均已扫描完毕，确认本轮存活，GC 不会重复扫描",
+          svg: `<svg width="60" height="48" viewBox="0 0 62 50">${sketchDef}
+            <circle cx="31" cy="25" r="16" fill="var(--gc-black-fill)" stroke="var(--gc-black-stroke)" stroke-width="2" filter="url(#gc-lg-sk)"/>
+            <text x="31" y="29" text-anchor="middle" font-size="10.5" font-weight="700" fill="var(--gc-black-text)">Obj</text>
+          </svg>`
+        },
+        {
+          name: "GC Roots（根节点）",
+          desc: "深青圆角标牌，代表栈变量、全局变量等可达性分析起点",
+          svg: `<svg width="60" height="48" viewBox="0 0 62 50">${sketchDef}
+            <rect x="6" y="11" width="50" height="28" rx="6" fill="#24576b" stroke="#163a47" stroke-width="1.6" filter="url(#gc-lg-sk)"/>
+            <text x="31" y="28.5" text-anchor="middle" font-size="10" font-weight="700" font-family="monospace" fill="#fff">Roots</text>
+          </svg>`
+        },
+        {
+          name: "栈空间（Stack）",
+          desc: "蓝色区域；容量小、函数压栈弹栈极频繁，Go 中不启用写屏障",
+          svg: `<svg width="60" height="48" viewBox="0 0 62 50">${sketchDef}
+            <rect x="5" y="7" width="52" height="36" rx="6" fill="rgba(59,130,246,0.08)" stroke="#3b82f6" stroke-width="1.6" stroke-dasharray="4 3" filter="url(#gc-lg-sk)"/>
+            <text x="31" y="29" text-anchor="middle" font-size="10.5" font-weight="700" fill="#2563eb">Stack</text>
+          </svg>`
+        },
+        {
+          name: "堆空间（Heap）",
+          desc: "琥珀/紫色区域；Goroutine 共享对象存放区，启用各类写屏障",
+          svg: `<svg width="60" height="48" viewBox="0 0 62 50">${sketchDef}
+            <rect x="5" y="7" width="52" height="36" rx="6" fill="rgba(217,119,6,0.08)" stroke="#d97706" stroke-width="1.6" stroke-dasharray="4 3" filter="url(#gc-lg-sk)"/>
+            <text x="31" y="29" text-anchor="middle" font-size="10.5" font-weight="700" fill="#b45309">Heap</text>
+          </svg>`
+        },
+        {
+          name: "写屏障（Write Barrier）",
+          desc: "紫色盾牌徽章；在堆指针写入/删除瞬间触发，强制将目标对象染灰",
+          svg: `<svg width="60" height="48" viewBox="0 0 62 50">${sketchDef}
+            <path d="M 31 6 L 46 13 L 46 25 C 46 34 39 40 31 44 C 23 40 16 34 16 25 L 16 13 Z" fill="#7c3aed" stroke="#5b21b6" stroke-width="1.6" filter="url(#gc-lg-sk)"/>
+            <text x="31" y="29" text-anchor="middle" font-size="12" font-weight="700" fill="#fff">屏</text>
+          </svg>`
+        },
+        {
+          name: "STW 暂停态",
+          desc: "红色锁止横幅；暂停全部用户 Goroutine，CPU 专职 GC 扫描",
+          svg: `<svg width="60" height="48" viewBox="0 0 62 50">${sketchDef}
+            <rect x="4" y="13" width="54" height="24" rx="5" fill="#fbeeed" stroke="#dc2626" stroke-width="1.6" filter="url(#gc-lg-sk)"/>
+            <text x="31" y="29" text-anchor="middle" font-size="10.5" font-weight="700" font-family="monospace" fill="#991b1b">⏸ STW</text>
+          </svg>`
+        },
+        {
+          name: "指针新增 / 断开",
+          desc: "绿虚线表示并发新建引用；红叉表示引用被删除断开",
+          svg: `<svg width="60" height="48" viewBox="0 0 62 50">${sketchDef}
+            <line x1="8" y1="16" x2="50" y2="16" stroke="#10b981" stroke-width="2" stroke-dasharray="4 3"/>
+            <path d="M 46 12.5 L 52 16 L 46 19.5" fill="none" stroke="#10b981" stroke-width="1.8" stroke-linecap="round"/>
+            <line x1="8" y1="35" x2="52" y2="35" stroke="#dc2626" stroke-width="1.8" stroke-dasharray="4 3"/>
+            <circle cx="30" cy="35" r="7" fill="#fbeeed" stroke="#dc2626" stroke-width="1.3"/>
+            <line x1="27" y1="32" x2="33" y2="38" stroke="#dc2626" stroke-width="1.8"/>
+            <line x1="33" y1="32" x2="27" y2="38" stroke="#dc2626" stroke-width="1.8"/>
+          </svg>`
+        },
+        {
+          name: "回收清除（Swept）",
+          desc: "半透明红叉虚线圆；确认不可达的对象在 Sweep 阶段被释放内存",
+          svg: `<svg width="60" height="48" viewBox="0 0 62 50">${sketchDef}
+            <circle cx="31" cy="25" r="15" fill="var(--gc-white-fill)" stroke="#dc2626" stroke-width="1.8" stroke-dasharray="4 3" opacity="0.45"/>
+            <line x1="21" y1="15" x2="41" y2="35" stroke="#dc2626" stroke-width="2.2" stroke-linecap="round"/>
+            <line x1="41" y1="15" x2="21" y2="35" stroke="#dc2626" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>`
+        }
+      ];
+
+      items.forEach(item => {
+        const div = document.createElement("div");
+        div.className = "legend-item";
+        div.innerHTML = `
+          <div class="legend-icon">${item.svg}</div>
+          <div class="legend-text">
+            <div class="legend-name">${item.name}</div>
+            <div class="legend-desc">${item.desc}</div>
+          </div>`;
+        grid.appendChild(div);
+      });
+    })();
+
+    /* ========================================================================
+       4. Ten Independent Interactive Go GC Scenario Configurations
+       ======================================================================== */
+    const SCENES_CONFIG = [
+      /* ----------------------------------------------------------------------
+         场景 01：Go V1.3 之前与 V1.3 — 标记-清除（Mark & Sweep）与 STW 提前优化
+         ---------------------------------------------------------------------- */
+      {
+        id: "scene-1",
+        num: "01",
+        badges: [{ text: "Go ≤ V1.3", ver: true }, { text: "Mark & Sweep" }, { text: "STW 优化" }],
+        title: "Go V1.3 之前与 V1.3：标记-清除算法与 STW 提前释放",
+        takeaway: "早期 Go 使用最朴素的标记-清除（Mark & Sweep）算法，整个过程包裹在 STW 内导致严重卡顿；Go V1.3 将 STW 提前到 Mark 结束时释放，让 Sweep 阶段并发执行，但 Mark 阶段仍必须全程暂停业务。",
+        viewBox: "0 0 880 448",
+        build(svg, defs) {
+          const { marker, sketch } = defs;
+          const bgLayer = el("g", {}, svg);
+          const lineLayer = el("g", {}, svg);
+          const nodeLayer = el("g", {}, svg);
+          const fxLayer = el("g", {}, svg);
+
+          const stw = Primitives.createStwBanner(fxLayer, 440, 26, sketch);
+
+          const heapZone = Primitives.createZone(bgLayer, {
+            x: 26, y: 50, w: 828, h: 248,
+            title: "堆内存空间（Heap）", subtitle: "可达链：1→2→3，4→7｜不可达：5→6",
+            color: "#d97706", fill: "rgba(217,119,6,0.03)", dashed: true, sketchUrl: sketch
+          });
+
+          const tlZone = Primitives.createZone(bgLayer, {
+            x: 26, y: 314, w: 828, h: 120,
+            title: "STW 时间轴对比（Go V1.3 之前 vs Go V1.3 优化）",
+            color: "#57534e", fill: "var(--svg-queue-bg)", dashed: false, sketchUrl: sketch
+          });
+
+          // Timeline rows inside bottom zone
+          function makeBar(y, label, segs) {
+            const lb = el("text", {
+              x: 42, y: y + 17, "font-size": 10.5, "font-weight": 700,
+              "font-family": "var(--font-mono)", fill: "var(--svg-text-sub)"
+            }, bgLayer);
+            lb.textContent = label;
+            const out = {};
+            let curX = 136;
+            segs.forEach(s => {
+              const g = el("g", { class: "gc-fade" }, bgLayer);
+              const r = el("rect", {
+                x: curX, y, width: s.w, height: 26, rx: 4,
+                fill: s.bg, stroke: s.bd, "stroke-width": 1.4,
+                filter: sketch
+              }, g);
+              const t = el("text", {
+                x: curX + s.w / 2, y: y + 17, "text-anchor": "middle",
+                "font-size": 10, "font-weight": 700,
+                "font-family": "var(--font-sans)", fill: s.tx
+              }, g);
+              t.textContent = s.text;
+              out[s.id] = { g, r };
+              curX += s.w + 6;
+            });
+            return out;
+          }
+
+          const tlOld = makeBar(348, "Go < V1.3", [
+            { id: "run1", w: 126, text: "程序运行", bg: "#edf6ef", bd: "#10b981", tx: "#065f46" },
+            { id: "mark", w: 210, text: "STW：Mark 标记", bg: "#fbeeed", bd: "#dc2626", tx: "#991b1b" },
+            { id: "sweep", w: 210, text: "STW：Sweep 清除", bg: "#fbeeed", bd: "#dc2626", tx: "#991b1b" },
+            { id: "run2", w: 136, text: "恢复运行", bg: "#edf6ef", bd: "#10b981", tx: "#065f46" }
+          ]);
+
+          const tlNew = makeBar(388, "Go V1.3", [
+            { id: "run1", w: 126, text: "程序运行", bg: "#edf6ef", bd: "#10b981", tx: "#065f46" },
+            { id: "mark", w: 210, text: "STW：仅 Mark 标记", bg: "#fbeeed", bd: "#dc2626", tx: "#991b1b" },
+            { id: "sweep", w: 210, text: "并发 Sweep + 程序恢复 ✓", bg: "#eef4fb", bd: "#3b82f6", tx: "#1e40af" },
+            { id: "run2", w: 136, text: "正常运行", bg: "#edf6ef", bd: "#10b981", tx: "#065f46" }
+          ]);
+
+          // STW bracket indicator
+          const root = Primitives.createRoot(nodeLayer, "GC Roots", 104, 178, { w: 94, h: 54, sub: "程序入口", sketchUrl: sketch });
+          const o1 = Primitives.createObj(nodeLayer, "对象1", 254, 126, { r: 25, sketchUrl: sketch });
+          const o2 = Primitives.createObj(nodeLayer, "对象2", 408, 126, { r: 25, sketchUrl: sketch });
+          const o3 = Primitives.createObj(nodeLayer, "对象3", 562, 126, { r: 25, sketchUrl: sketch });
+          const o4 = Primitives.createObj(nodeLayer, "对象4", 254, 232, { r: 25, sketchUrl: sketch });
+          const o7 = Primitives.createObj(nodeLayer, "对象7", 408, 232, { r: 25, sketchUrl: sketch });
+          const o5 = Primitives.createObj(nodeLayer, "对象5", 726, 126, { r: 25, sketchUrl: sketch });
+          const o6 = Primitives.createObj(nodeLayer, "对象6", 726, 232, { r: 25, sketchUrl: sketch });
+
+          const cR1 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const cR4 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c12 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c23 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c47 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c56 = Primitives.createConnector(lineLayer, { color: "#8c867c", dashed: true, markerEnd: marker("muted"), sketchUrl: sketch });
+
+          const fragNote = Primitives.createCallout(fxLayer, {
+            x: 726, y: 179, text: "已清除 → 产生内存碎片", color: "#991b1b", bg: "#fbeeed", maxW: 170, sketchUrl: sketch
+          });
+
+          function setEdges(activeReachable, sweptGarbage) {
+            const col = activeReachable ? "#0f766e" : "#57534e";
+            const mk = activeReachable ? marker("teal") : marker("slate");
+            cR1.set({ ...Geom.connect(root.pos, o1.pos), color: col, markerEnd: mk, width: activeReachable ? 2.4 : 1.9 });
+            cR4.set({ ...Geom.connect(root.pos, o4.pos), color: col, markerEnd: mk, width: activeReachable ? 2.4 : 1.9 });
+            c12.set({ ...Geom.connect(o1.pos, o2.pos), color: col, markerEnd: mk, width: activeReachable ? 2.4 : 1.9 });
+            c23.set({ ...Geom.connect(o2.pos, o3.pos), color: col, markerEnd: mk, width: activeReachable ? 2.4 : 1.9 });
+            c47.set({ ...Geom.connect(o4.pos, o7.pos), color: col, markerEnd: mk, width: activeReachable ? 2.4 : 1.9 });
+            c56.set({ ...Geom.connect(o5.pos, o6.pos), opacity: sweptGarbage ? 0.25 : 0.9, dashed: true, color: "#8c867c", markerEnd: marker("muted") });
+          }
+
+          function highlightTL(oldKey, newKey) {
+            ["run1", "mark", "sweep", "run2"].forEach(k => {
+              tlOld[k].g.setAttribute("opacity", !oldKey || oldKey === k ? "1" : "0.35");
+              tlNew[k].g.setAttribute("opacity", !newKey || newKey === k ? "1" : "0.35");
+            });
+          }
+
+          return { stw, heapZone, root, o1, o2, o3, o4, o7, o5, o6, fragNote, setEdges, highlightTL };
+        },
+        steps: [
+          {
+            title: "初始状态：程序正常运行，堆中并存可达对象与不可达垃圾",
+            desc: "业务 Goroutine 正在执行，<code>GC Roots</code> 可达的对象有两条链（<code>对象1→2→3</code> 与 <code>对象4→7</code>），而右侧 <code>对象5→对象6</code> 已脱离引用链成为不可达垃圾。",
+            apply(u) {
+              u.stw.setMode("running", "▶ 用户程序正常运行中，等待触发 GC");
+              u.heapZone.setHighlight(false, "#d97706");
+              u.root.setState({ active: false });
+              [u.o1, u.o2, u.o3, u.o4, u.o7, u.o5, u.o6].forEach(o => o.setState({ color: "white" }));
+              u.o5.setState({ color: "white", tag: "不可达", tagColor: "slate", tagY: -36 });
+              u.o6.setState({ color: "white", tag: "不可达", tagColor: "slate", tagY: 36 });
+              u.fragNote.set({ opacity: 0 });
+              u.setEdges(false, false);
+              u.highlightTL("run1", "run1");
+            }
+          },
+          {
+            title: "步骤 1：启动 STW（Stop The World），暂停所有业务逻辑",
+            desc: "GC 触发后，第一步直接启动 <strong>STW</strong>：所有用户 Goroutine 全部停顿，CPU 100% 移交给垃圾回收器，防止扫描期间引用关系被篡改。",
+            apply(u) {
+              u.stw.setMode("stw", "⏸ 启动 STW：暂停所有业务，准备扫描整个堆");
+              u.heapZone.setHighlight(true, "#dc2626");
+              u.root.setState({ active: true });
+              [u.o1, u.o2, u.o3, u.o4, u.o7, u.o5, u.o6].forEach(o => o.setState({ color: "white" }));
+              u.fragNote.set({ opacity: 0 });
+              u.setEdges(false, false);
+              u.highlightTL("mark", "mark");
+            }
+          },
+          {
+            title: "步骤 2：Mark 标记阶段 — 从根节点遍历并标记全部可达对象",
+            desc: "在 STW 保护下，GC 从 <code>GC Roots</code> 出发遍历整个堆，将可达的 <code>对象1、2、3、4、7</code> 全部打上存活标记（青绿色 ✓）；不可达的 <code>对象5、6</code> 保持未标记状态。",
+            apply(u) {
+              u.stw.setMode("stw", "⏸ STW 中 · Mark 阶段：遍历标记所有可达对象");
+              u.heapZone.setHighlight(true, "#dc2626");
+              u.root.setState({ active: true });
+              [u.o1, u.o2, u.o3, u.o4, u.o7].forEach(o => o.setState({ color: "marked", check: true, highlight: true, haloColor: "#10b981" }));
+              u.o5.setState({ color: "white", tag: "未标记（垃圾）", tagColor: "red", tagY: -36 });
+              u.o6.setState({ color: "white", tag: "未标记（垃圾）", tagColor: "red", tagY: 36 });
+              u.fragNote.set({ opacity: 0 });
+              u.setEdges(true, false);
+              u.highlightTL("mark", "mark");
+            }
+          },
+          {
+            title: "步骤 3：Sweep 清除阶段 — 释放未标记对象（注意堆碎片与停顿）",
+            desc: "标记完成后进入 <strong>Sweep 清除阶段</strong>，回收未标记的 <code>对象5、6</code>。在 <strong>Go V1.3 之前</strong>，整个 Sweep 过程依然处于 STW 暂停中，且直接清除不整理内存会产生 <strong>Heap 碎片</strong>。",
+            apply(u) {
+              u.stw.setMode("stw", "⏸ Go < V1.3：Sweep 仍在 STW 内执行（卡顿时间长）");
+              u.heapZone.setHighlight(true, "#dc2626");
+              u.root.setState({ active: false });
+              [u.o1, u.o2, u.o3, u.o4, u.o7].forEach(o => o.setState({ color: "marked", check: true }));
+              u.o5.setState({ color: "swept" });
+              u.o6.setState({ color: "swept" });
+              u.fragNote.set({ x: 726, y: 179, opacity: 1 });
+              u.setEdges(true, true);
+              u.highlightTL("sweep", "mark");
+            }
+          },
+          {
+            title: "步骤 4：Go V1.3 优化 — 将 STW 提前至 Mark 结束，Sweep 并发运行",
+            desc: "Go V1.3 发现：<strong>不可达对象已无任何引用，不会与用户代码产生写冲突</strong>！于是将 <strong>停止 STW 提前到 Mark 之后</strong>，让 <code>Sweep</code> 与用户程序并发执行。但 Mark 阶段仍需全程 STW，真正破局要靠 Go V1.5 的三色并发标记。",
+            apply(u) {
+              u.stw.setMode("sweep", "✓ Go V1.3 优化：Mark 结束即解除 STW，Sweep 并发清除");
+              u.heapZone.setHighlight(false, "#3b82f6");
+              u.root.setState({ active: false });
+              [u.o1, u.o2, u.o3, u.o4, u.o7].forEach(o => o.setState({ color: "marked", check: true }));
+              u.o5.setState({ color: "swept" });
+              u.o6.setState({ color: "swept" });
+              u.fragNote.set({ x: 726, y: 179, text: "Sweep 与业务并发执行", color: "#1e40af", bg: "#eef4fb", opacity: 1 });
+              u.setEdges(true, true);
+              u.highlightTL("sweep", "sweep");
+            }
+          }
+        ]
+      },
+
+      /* ----------------------------------------------------------------------
+         场景 02：Go V1.5 — 三色并发标记法（完整推演 + 实时三色标记表）
+         ---------------------------------------------------------------------- */
+      {
+        id: "scene-2",
+        num: "02",
+        badges: [{ text: "Go V1.5", ver: true }, { text: "三色标记法" }, { text: "Mark Sets" }],
+        title: "Go V1.5 的三色并发标记法：白 → 灰 → 黑逐层推进",
+        takeaway: "三色标记通过白（未访问）、灰（待扫下游）、黑（已确认存活）三张集合表逐层推进波前；当灰色集合彻底清空时，剩下的白色对象即为全部可安全回收的垃圾。",
+        viewBox: "0 0 880 434",
+        build(svg, defs) {
+          const { marker, sketch } = defs;
+          const bgLayer = el("g", {}, svg);
+          const lineLayer = el("g", {}, svg);
+          const nodeLayer = el("g", {}, svg);
+          const fxLayer = el("g", {}, svg);
+
+          const stw = Primitives.createStwBanner(fxLayer, 294, 26, sketch);
+
+          Primitives.createZone(bgLayer, {
+            x: 24, y: 50, w: 542, h: 364,
+            title: "程序对象引用图（GC Roots → Heap）",
+            color: "#24576b", fill: "rgba(36,87,107,0.025)", dashed: false, sketchUrl: sketch
+          });
+
+          const table = Primitives.createMarkTable(nodeLayer, {
+            x: 582, y: 50, w: 274, h: 364,
+            items: ["Obj1", "Obj2", "Obj3", "Obj4", "Obj5", "Obj6", "Obj7"],
+            sketchUrl: sketch
+          });
+
+          const root = Primitives.createRoot(nodeLayer, "Roots", 84, 234, { w: 84, h: 56, sub: "根节点集合", sketchUrl: sketch });
+          const o1 = Primitives.createObj(nodeLayer, "Obj1", 206, 154, { r: 24, sketchUrl: sketch });
+          const o2 = Primitives.createObj(nodeLayer, "Obj2", 336, 154, { r: 24, sketchUrl: sketch });
+          const o3 = Primitives.createObj(nodeLayer, "Obj3", 468, 154, { r: 24, sketchUrl: sketch });
+          const o4 = Primitives.createObj(nodeLayer, "Obj4", 206, 306, { r: 24, sketchUrl: sketch });
+          const o7 = Primitives.createObj(nodeLayer, "Obj7", 336, 306, { r: 24, sketchUrl: sketch });
+          const o5 = Primitives.createObj(nodeLayer, "Obj5", 482, 268, { r: 22, sketchUrl: sketch });
+          const o6 = Primitives.createObj(nodeLayer, "Obj6", 482, 356, { r: 22, sketchUrl: sketch });
+
+          const edges = {
+            r1: Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch }),
+            r4: Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch }),
+            e12: Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch }),
+            e23: Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch }),
+            e47: Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch }),
+            e56: Primitives.createConnector(lineLayer, { color: "#8c867c", dashed: true, markerEnd: marker("muted"), sketchUrl: sketch })
+          };
+
+          function drawEdges(hlList = [], swept56 = false) {
+            const pairs = [
+              ["r1", root.pos, o1.pos],
+              ["r4", root.pos, o4.pos],
+              ["e12", o1.pos, o2.pos],
+              ["e23", o2.pos, o3.pos],
+              ["e47", o4.pos, o7.pos]
+            ];
+            pairs.forEach(([k, a, b]) => {
+              const hl = hlList.includes(k);
+              edges[k].set({
+                ...Geom.connect(a, b),
+                color: hl ? "#d97706" : "#57534e",
+                markerEnd: hl ? marker("amber") : marker("slate"),
+                width: hl ? 2.6 : 1.9,
+                dashed: hl,
+                flow: hl
+              });
+            });
+            edges.e56.set({
+              ...Geom.connect(o5.pos, o6.pos),
+              color: "#8c867c",
+              markerEnd: marker("muted"),
+              dashed: true,
+              opacity: swept56 ? 0.25 : 0.85
+            });
+          }
+
+          return { stw, table, root, o1, o2, o3, o4, o5, o6, o7, drawEdges };
+        },
+        steps: [
+          {
+            title: "步骤 1：初始状态 — 所有新创建对象默认标记为白色",
+            desc: "GC 开始前，内存中全部 7 个对象（<code>Obj1~Obj7</code>）默认均为<strong>白色</strong>，归入右侧三色标记表的「白色集合」中，等待从 <code>Roots</code> 展开扫描。",
+            apply(u) {
+              u.stw.setMode("running", "步骤 1：全部对象初始化为白色");
+              u.root.setState({ active: false });
+              [u.o1, u.o2, u.o3, u.o4, u.o5, u.o6, u.o7].forEach(o => o.setState({ color: "white" }));
+              u.drawEdges([]);
+              u.table.setSets({ white: ["Obj1", "Obj2", "Obj3", "Obj4", "Obj5", "Obj6", "Obj7"], gray: [], black: [] });
+            }
+          },
+          {
+            title: "步骤 2：扫描根节点（仅遍历一层）— Obj1、Obj4 移入灰色集合",
+            desc: "GC 从 <code>Roots</code> 出发执行<strong>非递归的第一层遍历</strong>：直接可达的 <code>Obj1</code> 与 <code>Obj4</code> 从白色变为<strong>灰色</strong>，同步移入右侧「灰色集合」。",
+            apply(u) {
+              u.stw.setMode("stw", "扫描第 1 层：Roots → Obj1、Obj4 染灰");
+              u.root.setState({ active: true });
+              u.o1.setState({ color: "gray", highlight: true });
+              u.o4.setState({ color: "gray", highlight: true });
+              [u.o2, u.o3, u.o5, u.o6, u.o7].forEach(o => o.setState({ color: "white" }));
+              u.drawEdges(["r1", "r4"]);
+              u.table.setSets({ white: ["Obj2", "Obj3", "Obj5", "Obj6", "Obj7"], gray: ["Obj1", "Obj4"], black: [] });
+            }
+          },
+          {
+            title: "步骤 3：遍历灰色集合（第 1 轮）— Obj2、Obj7 染灰，Obj1、Obj4 变黑",
+            desc: "只扫描当前灰色对象：将 <code>Obj1</code> 引用的 <code>Obj2</code>、<code>Obj4</code> 引用的 <code>Obj7</code> 放入灰色集合；随后 <code>Obj1</code> 与 <code>Obj4</code> 扫描完毕，正式变为<strong>黑色</strong>！",
+            apply(u) {
+              u.stw.setMode("stw", "灰色推进：Obj1/4 变黑，下游 Obj2/7 染灰");
+              u.root.setState({ active: false });
+              u.o1.setState({ color: "black" });
+              u.o4.setState({ color: "black" });
+              u.o2.setState({ color: "gray", highlight: true });
+              u.o7.setState({ color: "gray", highlight: true });
+              [u.o3, u.o5, u.o6].forEach(o => o.setState({ color: "white" }));
+              u.drawEdges(["e12", "e47"]);
+              u.table.setSets({ white: ["Obj3", "Obj5", "Obj6"], gray: ["Obj2", "Obj7"], black: ["Obj1", "Obj4"] });
+            }
+          },
+          {
+            title: "步骤 4：遍历灰色集合（第 2 轮）— Obj3 染灰，Obj2、Obj7 变黑",
+            desc: "重复扫描灰色集合：<code>Obj2</code> 将其下游 <code>Obj3</code> 染灰后自身变黑；<code>Obj7</code> 无下游引用，直接变为黑色。",
+            apply(u) {
+              u.stw.setMode("stw", "灰色推进：Obj2/7 变黑，下游 Obj3 染灰");
+              u.root.setState({ active: false });
+              [u.o1, u.o2, u.o4, u.o7].forEach(o => o.setState({ color: "black" }));
+              u.o3.setState({ color: "gray", highlight: true });
+              [u.o5, u.o6].forEach(o => o.setState({ color: "white" }));
+              u.drawEdges(["e23"]);
+              u.table.setSets({ white: ["Obj5", "Obj6"], gray: ["Obj3"], black: ["Obj1", "Obj4", "Obj2", "Obj7"] });
+            }
+          },
+          {
+            title: "步骤 5：灰色集合清空 — 内存中只剩黑（存活）与白（垃圾）",
+            desc: "扫描最后一个灰色对象 <code>Obj3</code>（无下游）并将其染黑。此时<strong>灰色集合为空</strong>，标记终止：所有黑色为合法存活对象，白色 <code>Obj5、Obj6</code> 为不可达垃圾。",
+            apply(u) {
+              u.stw.setMode("running", "✓ 灰色集合清空：黑=存活，白=不可达垃圾");
+              u.root.setState({ active: false });
+              [u.o1, u.o2, u.o3, u.o4, u.o7].forEach(o => o.setState({ color: "black" }));
+              u.o5.setState({ color: "white", tag: "待回收", tagColor: "red", tagY: -34 });
+              u.o6.setState({ color: "white", tag: "待回收", tagColor: "red", tagY: 34 });
+              u.drawEdges([]);
+              u.table.setSets({ white: ["Obj5", "Obj6"], gray: [], black: ["Obj1", "Obj4", "Obj2", "Obj7", "Obj3"] });
+            }
+          },
+          {
+            title: "步骤 6：清除全部白色对象，完成本轮垃圾回收",
+            desc: "将白色集合中的 <code>Obj5、Obj6</code> 回收释放。若要实现与业务真正并发（去掉全程 STW），还必须解决<strong>并发修改引用导致的漏标问题</strong>——见下一场景！",
+            apply(u) {
+              u.stw.setMode("sweep", "🧹 回收全部白色对象（Obj5、Obj6），保留黑色存活集");
+              u.root.setState({ active: false });
+              [u.o1, u.o2, u.o3, u.o4, u.o7].forEach(o => o.setState({ color: "black" }));
+              u.o5.setState({ color: "swept" });
+              u.o6.setState({ color: "swept" });
+              u.drawEdges([], true);
+              u.table.setSets({ white: [], gray: [], black: ["Obj1", "Obj4", "Obj2", "Obj7", "Obj3"], swept: ["Obj5", "Obj6"] });
+            }
+          }
+        ]
+      },
+
+      /* ----------------------------------------------------------------------
+         场景 03：无 STW 的三色标记 — 并发漏标（对象误杀）与强弱三色不变式
+         ---------------------------------------------------------------------- */
+      {
+        id: "scene-3",
+        num: "03",
+        badges: [{ text: "并发风险", ver: true }, { text: "对象误杀" }, { text: "强/弱三色不变式" }],
+        title: "没有 STW 的三色标记：并发漏标危机与强/弱三色不变式",
+        takeaway: "不加 STW 时，若同时发生「黑色对象引用白色对象」与「灰色对象断开到该白色的路径」，就会发生灾难性的对象误杀！只要破坏其中任一条件（强三色不变式或弱三色不变式），即可确保对象零丢失。",
+        viewBox: "0 0 880 438",
+        build(svg, defs) {
+          const { marker, sketch } = defs;
+          const bgLayer = el("g", {}, svg);
+          const lineLayer = el("g", {}, svg);
+          const nodeLayer = el("g", {}, svg);
+          const fxLayer = el("g", {}, svg);
+
+          const stw = Primitives.createStwBanner(fxLayer, 298, 26, sketch);
+
+          Primitives.createZone(bgLayer, {
+            x: 24, y: 50, w: 548, h: 368,
+            title: "无 STW 并发标记现场（业务协程任意修改指针）",
+            color: "#dc2626", fill: "rgba(220,38,38,0.025)", dashed: true, sketchUrl: sketch
+          });
+
+          Primitives.createZone(bgLayer, {
+            x: 590, y: 50, w: 266, h: 176,
+            title: "漏标两大必要条件（同时满足即丢失）",
+            color: "#dc2626", fill: "var(--svg-queue-bg)", dashed: false, sketchUrl: sketch
+          });
+
+          Primitives.createZone(bgLayer, {
+            x: 590, y: 240, w: 266, h: 178,
+            title: "破局：强 / 弱三色不变式",
+            color: "#24576b", fill: "rgba(36,87,107,0.04)", dashed: true, sketchUrl: sketch
+          });
+
+          // Condition cards on top-right
+          function makeCondCard(y, title, sub) {
+            const g = el("g", { class: "gc-fade" }, fxLayer);
+            const r = el("rect", {
+              x: 604, y, width: 238, height: 56, rx: 6,
+              fill: "var(--svg-slot-bg)", stroke: "var(--svg-slot-border)", "stroke-width": 1.3,
+              filter: sketch
+            }, g);
+            const t1 = el("text", { x: 616, y: y + 22, "font-size": 11, "font-weight": 700, "font-family": "var(--font-serif)", fill: "var(--svg-text)" }, g);
+            t1.textContent = title;
+            const t2 = el("text", { x: 616, y: y + 41, "font-size": 10, "font-family": "var(--font-sans)", fill: "var(--svg-text-sub)" }, g);
+            t2.textContent = sub;
+            return {
+              setHit(hit) {
+                r.setAttribute("fill", hit ? "#fbeeed" : "var(--svg-slot-bg)");
+                r.setAttribute("stroke", hit ? "#dc2626" : "var(--svg-slot-border)");
+                r.setAttribute("stroke-width", hit ? "2" : "1.3");
+                t1.setAttribute("fill", hit ? "#991b1b" : "var(--svg-text)");
+              }
+            };
+          }
+          const cond1 = makeCondCard(86, "条件 1：黑色对象引用白色对象", "黑 Obj4 新建指针 q → 白 Obj3");
+          const cond2 = makeCondCard(154, "条件 2：灰色到白色的路径断裂", "灰 Obj2 删除指针 p ✕→ 白 Obj3");
+
+          // Invariants cards on bottom-right
+          const invG = el("g", { class: "gc-fade", opacity: 0.45 }, fxLayer);
+          // Strong invariant box
+          el("rect", { x: 604, y: 274, width: 238, height: 60, rx: 6, fill: "var(--svg-slot-bg)", stroke: "#7c3aed", "stroke-width": 1.3, filter: sketch }, invG);
+          const stTitle = el("text", { x: 616, y: 294, "font-size": 10.8, "font-weight": 700, "font-family": "var(--font-serif)", fill: "#6d28d9" }, invG);
+          stTitle.textContent = "强三色不变式（破坏条件 1）";
+          const stSub = el("text", { x: 616, y: 313, "font-size": 9.8, "font-family": "var(--font-sans)", fill: "var(--svg-text-sub)" }, invG);
+          stSub.textContent = "禁止 黑 → 白（对应：插入写屏障）";
+          // Mini visual: black X-> white
+          el("circle", { cx: 794, cy: 320, r: 7, fill: "var(--gc-black-fill)", stroke: "var(--gc-black-stroke)", "stroke-width": 1.2 }, invG);
+          el("line", { x1: 803, y1: 320, x2: 819, y2: 320, stroke: "#dc2626", "stroke-width": 1.6, "stroke-dasharray": "2 2" }, invG);
+          el("circle", { cx: 828, cy: 320, r: 7, fill: "var(--gc-white-fill)", stroke: "var(--gc-white-stroke)", "stroke-width": 1.2 }, invG);
+
+          // Weak invariant box
+          el("rect", { x: 604, y: 344, width: 238, height: 60, rx: 6, fill: "var(--svg-slot-bg)", stroke: "#0f766e", "stroke-width": 1.3, filter: sketch }, invG);
+          const wkTitle = el("text", { x: 616, y: 364, "font-size": 10.8, "font-weight": 700, "font-family": "var(--font-serif)", fill: "#0f766e" }, invG);
+          wkTitle.textContent = "弱三色不变式（破坏条件 2）";
+          const wkSub = el("text", { x: 616, y: 383, "font-size": 9.8, "font-family": "var(--font-sans)", fill: "var(--svg-text-sub)" }, invG);
+          wkSub.textContent = "允许黑→白，但白受灰链路保护（删除屏障）";
+
+          const root = Primitives.createRoot(nodeLayer, "Roots", 84, 226, { w: 82, h: 54, sub: "根节点", sketchUrl: sketch });
+          const o1 = Primitives.createObj(nodeLayer, "Obj1", 204, 148, { r: 24, sketchUrl: sketch });
+          const o2 = Primitives.createObj(nodeLayer, "Obj2", 344, 148, { r: 24, sketchUrl: sketch });
+          const o3 = Primitives.createObj(nodeLayer, "Obj3", 494, 148, { r: 24, sketchUrl: sketch });
+          const o4 = Primitives.createObj(nodeLayer, "Obj4", 204, 304, { r: 24, sketchUrl: sketch });
+          const o7 = Primitives.createObj(nodeLayer, "Obj7", 344, 304, { r: 24, sketchUrl: sketch });
+          const o5 = Primitives.createObj(nodeLayer, "Obj5", 494, 276, { r: 21, sketchUrl: sketch });
+          const o6 = Primitives.createObj(nodeLayer, "Obj6", 494, 356, { r: 21, sketchUrl: sketch });
+
+          const cR1 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const cR4 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c12 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c47 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const cP  = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const cQ  = Primitives.createConnector(lineLayer, { color: "#dc2626", width: 2.3, dashed: true, markerEnd: marker("red"), flow: true, sketchUrl: sketch });
+          const c56 = Primitives.createConnector(lineLayer, { color: "#8c867c", dashed: true, markerEnd: marker("muted"), sketchUrl: sketch });
+
+          // Static base edges
+          cR1.set(Geom.connect(root.pos, o1.pos));
+          cR4.set(Geom.connect(root.pos, o4.pos));
+          c12.set(Geom.connect(o1.pos, o2.pos));
+          c47.set(Geom.connect(o4.pos, o7.pos));
+
+          return { stw, root, o1, o2, o3, o4, o5, o6, o7, cP, cQ, c56, cond1, cond2, invG, marker };
+        },
+        steps: [
+          {
+            title: "初始状态：已完成第一轮扫描（Obj1/4 黑，Obj2/7 灰，Obj3 白）",
+            desc: "假设三色标记已推进一轮：<code>Obj1、Obj4</code> 为黑，<code>Obj2、Obj7</code> 为灰，其余为白；灰色 <code>Obj2</code> 正通过指针 <code>p</code> 指向白色 <code>Obj3</code>。现在假设<strong>不加 STW</strong>，让用户程序并发运行。",
+            apply(u) {
+              u.stw.setMode("danger", "⚠ 无 STW 且无写屏障：第一轮扫描刚结束");
+              u.o1.setState({ color: "black" });
+              u.o4.setState({ color: "black" });
+              u.o2.setState({ color: "gray", highlight: true });
+              u.o7.setState({ color: "gray" });
+              u.o3.setState({ color: "white", tag: "待扫描", tagColor: "slate", tagY: -35 });
+              u.o5.setState({ color: "white" });
+              u.o6.setState({ color: "white" });
+              u.cP.set({ ...Geom.connect(u.o2.pos, u.o3.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, cut: false, label: "指针 p", labelDy: -16, opacity: 1 });
+              u.cQ.set({ ...Geom.connect(u.o4.pos, u.o3.pos), curve: 26, opacity: 0 });
+              u.c56.set({ ...Geom.connect(u.o5.pos, u.o6.pos), opacity: 0.8 });
+              u.cond1.setHit(false);
+              u.cond2.setHit(false);
+              u.invG.setAttribute("opacity", "0.42");
+            }
+          },
+          {
+            title: "步骤 1（触发条件 1）：黑色 Obj4 并发新建指针 q 指向白色 Obj3",
+            desc: "在 GC 还没来得及扫描 <code>Obj2</code> 时，用户协程修改引用：<strong>已变黑的 <code>Obj4</code></strong> 新建指针 <code>q</code> 指向了白色 <code>Obj3</code>！黑色对象不会再被 GC 重扫，风险开始积聚。",
+            apply(u) {
+              u.stw.setMode("danger", "⚠ 并发写操作：黑 Obj4 新建指针 q → 白 Obj3");
+              u.o1.setState({ color: "black" });
+              u.o4.setState({ color: "black", highlight: true, haloColor: "#dc2626" });
+              u.o2.setState({ color: "gray" });
+              u.o7.setState({ color: "gray" });
+              u.o3.setState({ color: "white", highlight: true, haloColor: "#dc2626", tag: "被黑引用!", tagColor: "red", tagY: -35 });
+              u.o5.setState({ color: "white" });
+              u.o6.setState({ color: "white" });
+              u.cP.set({ ...Geom.connect(u.o2.pos, u.o3.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, cut: false, label: "指针 p", labelDy: -16, opacity: 1 });
+              u.cQ.set({ ...Geom.connect(u.o4.pos, u.o3.pos), curve: 32, color: "#dc2626", markerEnd: u.marker("red"), dashed: true, flow: true, label: "新建指针 q", opacity: 1 });
+              u.c56.set({ ...Geom.connect(u.o5.pos, u.o6.pos), opacity: 0.8 });
+              u.cond1.setHit(true);
+              u.cond2.setHit(false);
+              u.invG.setAttribute("opacity", "0.42");
+            }
+          },
+          {
+            title: "步骤 2（触发条件 2）：灰色 Obj2 并发删除指向 Obj3 的指针 p",
+            desc: "紧接着用户协程把 <code>Obj2</code> 指向 <code>Obj3</code> 的指针 <code>p</code> 移除！此时 <code>Obj3</code> 唯一存活的入口挂在<strong>黑色 <code>Obj4</code></strong> 下，灰色集合彻底失去了通往 <code>Obj3</code> 的路径！",
+            apply(u) {
+              u.stw.setMode("danger", "⚠ 两大漏标条件同时满足！Obj3 失去灰色保护");
+              u.o1.setState({ color: "black" });
+              u.o4.setState({ color: "black" });
+              u.o2.setState({ color: "gray", highlight: true, haloColor: "#dc2626" });
+              u.o7.setState({ color: "gray" });
+              u.o3.setState({ color: "white", highlight: true, haloColor: "#dc2626", tag: "无灰可达!", tagColor: "red", tagY: -35 });
+              u.o5.setState({ color: "white" });
+              u.o6.setState({ color: "white" });
+              u.cP.set({ ...Geom.connect(u.o2.pos, u.o3.pos), color: "#dc2626", markerEnd: u.marker("red"), dashed: true, cut: true, label: "删除 p", opacity: 0.75 });
+              u.cQ.set({ ...Geom.connect(u.o4.pos, u.o3.pos), curve: 32, color: "#dc2626", markerEnd: u.marker("red"), dashed: false, flow: false, label: "指针 q", opacity: 1 });
+              u.c56.set({ ...Geom.connect(u.o5.pos, u.o6.pos), opacity: 0.8 });
+              u.cond1.setHit(true);
+              u.cond2.setHit(true);
+              u.invG.setAttribute("opacity", "0.42");
+            }
+          },
+          {
+            title: "步骤 3：GC 正常扫描完所有灰色对象（Obj2、Obj7 变黑），Obj3 仍是白色",
+            desc: "GC 继续执行三色算法：扫描灰色 <code>Obj2</code>（已无下游）和 <code>Obj7</code> 并将它们染黑。因为黑色 <code>Obj4</code> 绝不会被重扫，灰色集合清空时，<strong>合法存活的 <code>Obj3</code> 依然是白色</strong>！",
+            apply(u) {
+              u.stw.setMode("danger", "⚠ 灰色集合已空，Obj4 合法引用的 Obj3 仍为白色！");
+              [u.o1, u.o2, u.o4, u.o7].forEach(o => o.setState({ color: "black" }));
+              u.o3.setState({ color: "white", highlight: true, haloColor: "#dc2626", tag: "漏标危机!", tagColor: "red", tagY: -35 });
+              u.o5.setState({ color: "white" });
+              u.o6.setState({ color: "white" });
+              u.cP.set({ ...Geom.connect(u.o2.pos, u.o3.pos), opacity: 0.18, dashed: true, cut: true });
+              u.cQ.set({ ...Geom.connect(u.o4.pos, u.o3.pos), curve: 32, color: "#dc2626", markerEnd: u.marker("red"), dashed: false, label: "合法引用 q", opacity: 1 });
+              u.c56.set({ ...Geom.connect(u.o5.pos, u.o6.pos), opacity: 0.8 });
+              u.cond1.setHit(true);
+              u.cond2.setHit(true);
+              u.invG.setAttribute("opacity", "0.55");
+            }
+          },
+          {
+            title: "步骤 4：灾难发生 — 白色 Obj3 被 GC 误杀回收，程序出现悬空指针",
+            desc: "进入清除阶段，所有白色对象（<code>Obj3、Obj5、Obj6</code>）被当作垃圾一并清除！<code>Obj4</code> 通过指针 <code>q</code> 合法引用的 <code>Obj3</code>（及其下游）遭到<strong>误杀</strong>，将导致致命内存错误。",
+            apply(u) {
+              u.stw.setMode("stw", "💥 对象误杀：Obj4 正在引用的 Obj3 被错误回收！");
+              [u.o1, u.o2, u.o4, u.o7].forEach(o => o.setState({ color: "black" }));
+              u.o3.setState({ color: "swept", tag: "被误杀!", tagColor: "red", tagY: -35 });
+              u.o5.setState({ color: "swept" });
+              u.o6.setState({ color: "swept" });
+              u.cP.set({ ...Geom.connect(u.o2.pos, u.o3.pos), opacity: 0 });
+              u.cQ.set({ ...Geom.connect(u.o4.pos, u.o3.pos), curve: 32, color: "#dc2626", markerEnd: u.marker("red"), dashed: true, label: "悬空指针!", opacity: 0.9 });
+              u.c56.set({ ...Geom.connect(u.o5.pos, u.o6.pos), opacity: 0.22 });
+              u.cond1.setHit(true);
+              u.cond2.setHit(true);
+              u.invG.setAttribute("opacity", "0.75");
+            }
+          },
+          {
+            title: "步骤 5：破局思路 — 满足「强三色不变式」或「弱三色不变式」即可杜绝漏标",
+            desc: "只要破坏上述两个必要条件之一就能彻底避免误杀：<strong>强三色不变式</strong>强制不允许黑指白（衍生出<strong>插入写屏障</strong>）；<strong>弱三色不变式</strong>保证被黑引用的白始终有上游灰保护（衍生出<strong>删除写屏障</strong>）。",
+            apply(u) {
+              u.stw.setMode("barrier", "✓ 破局关键：用写屏障守住强/弱三色不变式");
+              [u.o1, u.o2, u.o4, u.o7].forEach(o => o.setState({ color: "black" }));
+              u.o3.setState({ color: "gray", highlight: true, shield: true, haloColor: "#7c3aed", tag: "屏障染灰保护", tagColor: "purple", tagY: -36 });
+              u.o5.setState({ color: "swept" });
+              u.o6.setState({ color: "swept" });
+              u.cP.set({ ...Geom.connect(u.o2.pos, u.o3.pos), opacity: 0.2, dashed: true, cut: true });
+              u.cQ.set({ ...Geom.connect(u.o4.pos, u.o3.pos), curve: 32, color: "#7c3aed", markerEnd: u.marker("purple"), dashed: false, label: "写屏障拦截", opacity: 1 });
+              u.c56.set({ ...Geom.connect(u.o5.pos, u.o6.pos), opacity: 0.22 });
+              u.cond1.setHit(false);
+              u.cond2.setHit(false);
+              u.invG.setAttribute("opacity", "1");
+            }
+          }
+        ]
+      },
+
+      /* ----------------------------------------------------------------------
+         场景 04：Go V1.5 插入写屏障（堆开、栈关 + 结束时 STW 重扫栈）
+         ---------------------------------------------------------------------- */
+      {
+        id: "scene-4",
+        num: "04",
+        badges: [{ text: "Go V1.5", ver: true }, { text: "插入写屏障" }, { text: "堆开 / 栈关" }],
+        title: "Go V1.5 插入写屏障：堆/栈差异与标记结束的 STW 重扫栈",
+        takeaway: "插入写屏障在 A 引用 B 时将 B 强制染灰（满足强三色不变式）。但为了不拖慢函数调用，栈空间不启用写屏障、仅堆空间启用；因此并发扫描结束后，必须开启一次 STW（约 10~100ms）重新扫描栈空间，补救栈上新挂的白色对象。",
+        viewBox: "0 0 880 442",
+        build(svg, defs) {
+          const { marker, sketch } = defs;
+          const bgLayer = el("g", {}, svg);
+          const lineLayer = el("g", {}, svg);
+          const nodeLayer = el("g", {}, svg);
+          const fxLayer = el("g", {}, svg);
+
+          const stw = Primitives.createStwBanner(fxLayer, 440, 26, sketch);
+
+          const stackZone = Primitives.createZone(bgLayer, {
+            x: 24, y: 52, w: 400, h: 316,
+            title: "栈空间 Stack", subtitle: "✕ 不启用写屏障（保函数性能）",
+            color: "#3b82f6", fill: "rgba(59,130,246,0.035)", dashed: true, sketchUrl: sketch
+          });
+
+          const heapZone = Primitives.createZone(bgLayer, {
+            x: 444, y: 52, w: 412, h: 316,
+            title: "堆空间 Heap", subtitle: "🛡 插入写屏障开启（新下游染灰）",
+            color: "#d97706", fill: "rgba(217,119,6,0.035)", dashed: true, sketchUrl: sketch
+          });
+
+          const opBanner = Primitives.createCallout(fxLayer, {
+            x: 440, y: 404, text: "", color: "#5b21b6", bg: "#f4f0fa", maxW: 520, font: "mono", sketchUrl: sketch
+          });
+
+          // Stack nodes
+          const sRoot = Primitives.createRoot(nodeLayer, "Stack", 86, 146, { w: 74, h: 46, sub: "栈根", sketchUrl: sketch });
+          const o1 = Primitives.createObj(nodeLayer, "Obj1", 204, 146, { r: 23, sketchUrl: sketch });
+          const o2 = Primitives.createObj(nodeLayer, "Obj2", 342, 146, { r: 23, sketchUrl: sketch });
+          const o3 = Primitives.createObj(nodeLayer, "Obj3", 342, 272, { r: 23, sketchUrl: sketch });
+          const o9 = Primitives.createObj(nodeLayer, "Obj9", 204, 286, { r: 23, sketchUrl: sketch });
+
+          // Heap nodes
+          const o4 = Primitives.createObj(nodeLayer, "Obj4", 530, 146, { r: 23, sketchUrl: sketch });
+          const o7 = Primitives.createObj(nodeLayer, "Obj7", 664, 146, { r: 23, sketchUrl: sketch });
+          const o8 = Primitives.createObj(nodeLayer, "Obj8", 530, 286, { r: 23, sketchUrl: sketch });
+          const o5 = Primitives.createObj(nodeLayer, "Obj5", 784, 166, { r: 21, sketchUrl: sketch });
+          const o6 = Primitives.createObj(nodeLayer, "Obj6", 784, 286, { r: 21, sketchUrl: sketch });
+
+          // Connectors
+          const cSR1 = Primitives.createConnector(lineLayer, { color: "#3b82f6", markerEnd: marker("blue"), sketchUrl: sketch });
+          const c12  = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c23  = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c19  = Primitives.createConnector(lineLayer, { color: "#dc2626", dashed: true, markerEnd: marker("red"), flow: true, sketchUrl: sketch });
+
+          const c47  = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c48  = Primitives.createConnector(lineLayer, { color: "#7c3aed", dashed: true, markerEnd: marker("purple"), flow: true, sketchUrl: sketch });
+          const c56  = Primitives.createConnector(lineLayer, { color: "#8c867c", dashed: true, markerEnd: marker("muted"), sketchUrl: sketch });
+
+          cSR1.set(Geom.connect(sRoot.pos, o1.pos));
+          c12.set(Geom.connect(o1.pos, o2.pos));
+          c23.set(Geom.connect(o2.pos, o3.pos));
+          c47.set(Geom.connect(o4.pos, o7.pos));
+
+          return { stw, stackZone, heapZone, opBanner, sRoot, o1, o2, o3, o9, o4, o7, o8, o5, o6, c19, c48, c56, marker };
+        },
+        steps: [
+          {
+            title: "步骤 1：并发三色扫描推进 — 栈上 Obj1~3、堆上 Obj4/7 均已扫描变黑",
+            desc: "进入并发标记阶段：堆空间已开启<strong>插入写屏障</strong>，栈空间因调用频繁<strong>不开启写屏障</strong>。此时栈上 <code>Obj1→2→3</code> 和堆上 <code>Obj4→7</code> 均已完成扫描变为黑色。",
+            apply(u) {
+              u.stw.setMode("barrier", "🛡 并发标记中：堆开插入写屏障，栈无屏障");
+              u.stackZone.setHighlight(false, "#3b82f6");
+              u.heapZone.setHighlight(false, "#d97706");
+              [u.o1, u.o2, u.o3, u.o4, u.o7].forEach(o => o.setState({ color: "black" }));
+              u.o9.setState({ color: "white", opacity: 0.35 });
+              u.o8.setState({ color: "white", opacity: 0.35 });
+              u.o5.setState({ color: "white" });
+              u.o6.setState({ color: "white" });
+              u.c19.set({ ...Geom.connect(u.o1.pos, u.o9.pos), opacity: 0 });
+              u.c48.set({ ...Geom.connect(u.o4.pos, u.o8.pos), opacity: 0 });
+              u.c56.set({ ...Geom.connect(u.o5.pos, u.o6.pos), opacity: 0.8 });
+              u.opBanner.set({ text: "插入写屏障伪码：shadeGray(newPtr); *slot = newPtr  (仅对堆生效)", color: "#5b21b6", bg: "#f4f0fa", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 2：堆上新增引用（Obj4 → Obj8）— 触发插入写屏障，Obj8 立刻染灰！",
+            desc: "用户协程在<strong>堆空间</strong>执行 <code>Obj4.next = Obj8</code>：黑色 <code>Obj4</code> 指向白色 <code>Obj8</code>，瞬间触发堆上<strong>插入写屏障</strong>，强制将 <code>Obj8</code> 染成<strong>灰色</strong>，守住强三色不变式！",
+            apply(u) {
+              u.stw.setMode("barrier", "🛡 堆区触发插入写屏障：黑 Obj4 → 白 Obj8，强制染灰！");
+              u.stackZone.setHighlight(false, "#3b82f6");
+              u.heapZone.setHighlight(true, "#7c3aed");
+              [u.o1, u.o2, u.o3, u.o4, u.o7].forEach(o => o.setState({ color: "black" }));
+              u.o8.setState({ color: "gray", opacity: 1, highlight: true, shield: true, haloColor: "#7c3aed", tag: "写屏障染灰 ✓", tagColor: "purple", tagY: 36 });
+              u.o9.setState({ color: "white", opacity: 0.35 });
+              u.o5.setState({ color: "white" });
+              u.o6.setState({ color: "white" });
+              u.c19.set({ ...Geom.connect(u.o1.pos, u.o9.pos), opacity: 0 });
+              u.c48.set({ ...Geom.connect(u.o4.pos, u.o8.pos), color: "#7c3aed", markerEnd: u.marker("purple"), dashed: true, flow: true, label: "触发插入屏障", opacity: 1 });
+              u.c56.set({ ...Geom.connect(u.o5.pos, u.o6.pos), opacity: 0.8 });
+              u.opBanner.set({ text: "Heap: Obj4.add(nil, Obj8) → shadeGray(Obj8) → 满足强三色不变式", color: "#5b21b6", bg: "#f4f0fa", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 3：栈上新增引用（Obj1 → Obj9）— 栈无写屏障，Obj9 仍是白色！",
+            desc: "同一时间，用户协程在<strong>栈空间</strong>执行 <code>Obj1.next = Obj9</code>：因为栈空间没有写屏障，白色 <code>Obj9</code> 挂在了黑色 <code>Obj1</code> 下却<strong>没有被染灰</strong>，埋下漏标隐患！",
+            apply(u) {
+              u.stw.setMode("danger", "⚠ 栈区无写屏障：黑 Obj1 → 白 Obj9，Obj9 未染灰！");
+              u.stackZone.setHighlight(true, "#dc2626");
+              u.heapZone.setHighlight(false, "#d97706");
+              [u.o1, u.o2, u.o3, u.o4, u.o7].forEach(o => o.setState({ color: "black" }));
+              u.o8.setState({ color: "gray", opacity: 1, shield: true, tag: "堆区已保护", tagColor: "purple", tagY: 36 });
+              u.o9.setState({ color: "white", opacity: 1, highlight: true, haloColor: "#dc2626", tag: "仍是白色!", tagColor: "red", tagY: 36 });
+              u.o5.setState({ color: "white" });
+              u.o6.setState({ color: "white" });
+              u.c19.set({ ...Geom.connect(u.o1.pos, u.o9.pos), color: "#dc2626", markerEnd: u.marker("red"), dashed: true, flow: true, label: "无屏障拦截!", opacity: 1 });
+              u.c48.set({ ...Geom.connect(u.o4.pos, u.o8.pos), color: "#7c3aed", markerEnd: u.marker("purple"), dashed: false, flow: false, opacity: 1 });
+              u.c56.set({ ...Geom.connect(u.o5.pos, u.o6.pos), opacity: 0.8 });
+              u.opBanner.set({ text: "Stack: Obj1.add(nil, Obj9) → 栈不开屏障 → Obj9 仍白（隐患！）", color: "#991b1b", bg: "#fbeeed", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 4：并发扫描结束 — 堆上 Obj8 安全变黑，栈上 Obj9 危在旦夕",
+            desc: "并发标记继续扫描灰色集合，堆上的 <code>Obj8</code> 顺利转为黑色；但灰色集合清空时，栈上被 <code>Obj1</code> 引用的 <code>Obj9</code> 仍是白色——如果此刻直接清除就会误杀 <code>Obj9</code>！",
+            apply(u) {
+              u.stw.setMode("danger", "⚠ 并发标记结束：堆 Obj8 安全变黑，栈 Obj9 面临误杀");
+              u.stackZone.setHighlight(true, "#dc2626");
+              u.heapZone.setHighlight(false, "#d97706");
+              [u.o1, u.o2, u.o3, u.o4, u.o7, u.o8].forEach(o => o.setState({ color: "black" }));
+              u.o8.setState({ color: "black", tag: "安全存活 ✓", tagColor: "green", tagY: 36 });
+              u.o9.setState({ color: "white", highlight: true, haloColor: "#dc2626", tag: "直接清除会误杀!", tagColor: "red", tagY: 36 });
+              u.o5.setState({ color: "white" });
+              u.o6.setState({ color: "white" });
+              u.c19.set({ ...Geom.connect(u.o1.pos, u.o9.pos), color: "#dc2626", markerEnd: u.marker("red"), dashed: false, flow: false, opacity: 1 });
+              u.c48.set({ ...Geom.connect(u.o4.pos, u.o8.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, flow: false, opacity: 1 });
+              u.c56.set({ ...Geom.connect(u.o5.pos, u.o6.pos), opacity: 0.8 });
+              u.opBanner.set({ text: "无法直接 Sweep！必须暂停业务，对栈空间重新三色标记（Re-scan Stack）", color: "#92400e", bg: "#fbf5e6", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 5：开启 STW 重扫栈空间（10~100ms）— 拯救白色 Obj9",
+            desc: "Go V1.5 在并发标记结束后<strong>开启 STW</strong>，对所有 Goroutine 的栈区重新扫描一遍：<code>Obj1 → Obj9</code> 被迅速发现，<code>Obj9</code> 染灰并转黑，隐患消除！",
+            apply(u) {
+              u.stw.setMode("stw", "⏸ 开启 STW（10~100ms）：重新扫描栈空间（Re-scan Stack）");
+              u.stackZone.setHighlight(true, "#dc2626");
+              u.heapZone.setHighlight(false, "#d97706");
+              u.sRoot.setState({ active: true });
+              [u.o1, u.o2, u.o3, u.o4, u.o7, u.o8].forEach(o => o.setState({ color: "black" }));
+              u.o9.setState({ color: "black", highlight: true, haloColor: "#10b981", tag: "STW 重扫救回 ✓", tagColor: "green", tagY: 36 });
+              u.o5.setState({ color: "white" });
+              u.o6.setState({ color: "white" });
+              u.c19.set({ ...Geom.connect(u.o1.pos, u.o9.pos), color: "#10b981", markerEnd: u.marker("green"), dashed: false, label: "重扫确认", opacity: 1 });
+              u.c48.set({ ...Geom.connect(u.o4.pos, u.o8.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, opacity: 1 });
+              u.c56.set({ ...Geom.connect(u.o5.pos, u.o6.pos), opacity: 0.8 });
+              u.opBanner.set({ text: "STW Re-scan 完成：栈上全部可达对象（含 Obj9）已染黑保护", color: "#065f46", bg: "#edf6ef", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 6：解除 STW，清除剩余白色垃圾（Obj5、Obj6）",
+            desc: "栈重扫结束后立即解除 STW，安全清除堆上剩余的白色不可达对象 <code>Obj5、Obj6</code>。<strong>短板</strong>：结束时的 STW 重扫栈仍会带来 10~100ms 的业务卡顿。",
+            apply(u) {
+              u.stw.setMode("sweep", "🧹 解除 STW 并发清除白垃圾（短板：结束需 STW 重扫栈）");
+              u.stackZone.setHighlight(false, "#3b82f6");
+              u.heapZone.setHighlight(false, "#d97706");
+              u.sRoot.setState({ active: false });
+              [u.o1, u.o2, u.o3, u.o4, u.o7, u.o8, u.o9].forEach(o => o.setState({ color: "black" }));
+              u.o5.setState({ color: "swept" });
+              u.o6.setState({ color: "swept" });
+              u.c19.set({ ...Geom.connect(u.o1.pos, u.o9.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, opacity: 1 });
+              u.c48.set({ ...Geom.connect(u.o4.pos, u.o8.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, opacity: 1 });
+              u.c56.set({ ...Geom.connect(u.o5.pos, u.o6.pos), opacity: 0.22 });
+              u.opBanner.set({ text: "总结：插入屏障守住强不变式，但栈无屏障导致结束必须 STW 重扫栈", color: "#24576b", bg: "#f3f1ea", opacity: 1 });
+            }
+          }
+        ]
+      },
+
+      /* ----------------------------------------------------------------------
+         场景 05：删除写屏障（弱三色不变式 + 起始快照 + 低回收精度/浮动垃圾）
+         ---------------------------------------------------------------------- */
+      {
+        id: "scene-5",
+        num: "05",
+        badges: [{ text: "删除写屏障", ver: true }, { text: "弱三色不变式" }, { text: "浮动垃圾" }],
+        title: "删除写屏障（SATB 起始快照）：保护断链路径与浮动垃圾短板",
+        takeaway: "删除写屏障在断开旧引用前，若旧目标为白或灰则强制染灰（满足弱三色不变式），标记结束无需重扫栈；但 GC 开始时需 STW 扫描栈记录起始快照，且已被彻底断链的对象仍会活过本轮 GC（回收精度低）。",
+        viewBox: "0 0 880 442",
+        build(svg, defs) {
+          const { marker, sketch } = defs;
+          const bgLayer = el("g", {}, svg);
+          const lineLayer = el("g", {}, svg);
+          const nodeLayer = el("g", {}, svg);
+          const fxLayer = el("g", {}, svg);
+
+          const stw = Primitives.createStwBanner(fxLayer, 440, 26, sketch);
+
+          const heapZone = Primitives.createZone(bgLayer, {
+            x: 26, y: 52, w: 828, h: 314,
+            title: "堆空间 Heap（删除写屏障开启 🛡）", subtitle: "规则：被删目标若为白/灰 → 先染灰再断链",
+            color: "#0f766e", fill: "rgba(15,118,110,0.03)", dashed: true, sketchUrl: sketch
+          });
+
+          const opBanner = Primitives.createCallout(fxLayer, {
+            x: 440, y: 404, text: "", color: "#115e59", bg: "#ebf5f4", maxW: 540, font: "mono", sketchUrl: sketch
+          });
+
+          const root = Primitives.createRoot(nodeLayer, "Roots", 92, 206, { w: 84, h: 56, sub: "起始快照", sketchUrl: sketch });
+          const o1 = Primitives.createObj(nodeLayer, "Obj1", 224, 146, { r: 24, sketchUrl: sketch });
+          const o5 = Primitives.createObj(nodeLayer, "Obj5", 376, 146, { r: 24, sketchUrl: sketch });
+          const o2 = Primitives.createObj(nodeLayer, "Obj2", 554, 146, { r: 24, sketchUrl: sketch });
+          const o3 = Primitives.createObj(nodeLayer, "Obj3", 714, 146, { r: 24, sketchUrl: sketch });
+          const o4 = Primitives.createObj(nodeLayer, "Obj4", 224, 286, { r: 24, sketchUrl: sketch });
+          const o6 = Primitives.createObj(nodeLayer, "Obj6", 772, 286, { r: 22, sketchUrl: sketch });
+
+          const cR1 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const cR4 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c15 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c52 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c23 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c42 = Primitives.createConnector(lineLayer, { color: "#0f766e", dashed: true, markerEnd: marker("teal"), sketchUrl: sketch });
+
+          cR1.set(Geom.connect(root.pos, o1.pos));
+          cR4.set(Geom.connect(root.pos, o4.pos));
+          c15.set(Geom.connect(o1.pos, o5.pos));
+
+          return { stw, heapZone, opBanner, root, o1, o5, o2, o3, o4, o6, c52, c23, c42, marker };
+        },
+        steps: [
+          {
+            title: "步骤 1：GC 开始 STW 拍栈快照，当前 Obj1/4 黑、Obj5 灰、Obj2/3/6 白",
+            desc: "删除写屏障在 GC 开始时需短暂 STW 扫描栈记录起始快照，随后进入并发标记：<code>Obj1、Obj4</code> 已黑，<code>Obj5</code> 为灰并引用着白色链路 <code>Obj2 → Obj3</code>，右侧 <code>Obj6</code> 不可达。",
+            apply(u) {
+              u.stw.setMode("barrier", "🛡 删除写屏障开启（起始快照已完成，并发标记中）");
+              u.root.setState({ active: false });
+              u.o1.setState({ color: "black" });
+              u.o4.setState({ color: "black" });
+              u.o5.setState({ color: "gray", highlight: true });
+              u.o2.setState({ color: "white" });
+              u.o3.setState({ color: "white" });
+              u.o6.setState({ color: "white", tag: "不可达", tagColor: "slate", tagY: 34 });
+              u.c52.set({ ...Geom.connect(u.o5.pos, u.o2.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, cut: false, opacity: 1 });
+              u.c23.set({ ...Geom.connect(u.o2.pos, u.o3.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, opacity: 1 });
+              u.c42.set({ ...Geom.connect(u.o4.pos, u.o2.pos), curve: 26, opacity: 0 });
+              u.opBanner.set({ text: "删除屏障伪码：if isWhiteOrGray(*slot) { shadeGray(*slot) }; *slot = newPtr", color: "#115e59", bg: "#ebf5f4", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 2：用户协程准备执行 Obj5.next = nil（删除对 Obj2 的引用）",
+            desc: "并发运行中，业务代码准备断开 <code>Obj5 → Obj2</code> 的引用指针。如果没有删除屏障，且此刻黑色 <code>Obj4</code> 接手了 <code>Obj2</code>，就会触发漏标！",
+            apply(u) {
+              u.stw.setMode("barrier", "⚡ 拦截到写操作：Obj5 准备删除指向 Obj2 的引用");
+              u.o1.setState({ color: "black" });
+              u.o4.setState({ color: "black" });
+              u.o5.setState({ color: "gray", highlight: true, haloColor: "#dc2626" });
+              u.o2.setState({ color: "white", highlight: true, haloColor: "#d97706", tag: "将被断链!", tagColor: "amber", tagY: -36 });
+              u.o3.setState({ color: "white" });
+              u.o6.setState({ color: "white" });
+              u.c52.set({ ...Geom.connect(u.o5.pos, u.o2.pos), color: "#dc2626", markerEnd: u.marker("red"), dashed: true, cut: false, label: "准备删除", labelDy: -16, opacity: 1 });
+              u.c23.set({ ...Geom.connect(u.o2.pos, u.o3.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, opacity: 1 });
+              u.c42.set({ ...Geom.connect(u.o4.pos, u.o2.pos), curve: 26, opacity: 0 });
+              u.opBanner.set({ text: "Obj5.add(Obj2, nil) → 删除写屏障立即介入检查旧下游 Obj2！", color: "#92400e", bg: "#fbf5e6", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 3：触发删除写屏障 — 断链前强制将白色 Obj2 染灰，随后才断开指针！",
+            desc: "删除写屏障发现被删对象 <code>Obj2</code> 是白色，<strong>立刻先将 <code>Obj2</code> 标记为灰色</strong>，再执行 <code>Obj5.next = nil</code> 断链！至此，哪怕有黑色对象引用 <code>Obj2</code>，<code>Obj2</code> 与下游 <code>Obj3</code> 也都在灰色保护之下（弱三色不变式）。",
+            apply(u) {
+              u.stw.setMode("barrier", "🛡 删除写屏障触发：先将旧下游 Obj2 染灰，再断开指针");
+              u.o1.setState({ color: "black" });
+              u.o4.setState({ color: "black" });
+              u.o5.setState({ color: "gray" });
+              u.o2.setState({ color: "gray", highlight: true, shield: true, haloColor: "#7c3aed", tag: "删除屏障染灰 ✓", tagColor: "purple", tagY: -36 });
+              u.o3.setState({ color: "white", tag: "受灰保护 ✓", tagColor: "teal", tagY: -36 });
+              u.o6.setState({ color: "white" });
+              u.c52.set({ ...Geom.connect(u.o5.pos, u.o2.pos), color: "#dc2626", markerEnd: u.marker("red"), dashed: true, cut: true, label: "已断开", opacity: 0.55 });
+              u.c23.set({ ...Geom.connect(u.o2.pos, u.o3.pos), color: "#0f766e", markerEnd: u.marker("teal"), dashed: false, opacity: 1 });
+              u.c42.set({ ...Geom.connect(u.o4.pos, u.o2.pos), curve: 26, color: "#0f766e", markerEnd: u.marker("teal"), dashed: true, label: "即便黑4接手也安全", opacity: 0.65 });
+              u.opBanner.set({ text: "shadeGray(Obj2); Obj5.next = nil → 弱三色不变式成立，下游 Obj3 绝不丢失", color: "#5b21b6", bg: "#f4f0fa", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 4：正常推进三色扫描 — 即使 Obj2 已彻底无人引用，仍会扫黑存活！",
+            desc: "假设业务中其实<strong>没有任何对象接手 <code>Obj2</code></strong>：由于 <code>Obj2</code> 已被染灰，GC 依然会扫描灰色 <code>Obj5</code>（变黑），并扫描 <code>Obj2 → Obj3</code>，最终把 <code>Obj2、Obj3</code> 全都染黑！",
+            apply(u) {
+              u.stw.setMode("barrier", "继续扫描灰色集合：Obj5、Obj2、Obj3 依次全部变黑");
+              [u.o1, u.o4, u.o5, u.o2, u.o3].forEach(o => o.setState({ color: "black" }));
+              u.o2.setState({ color: "black", tag: "实际已无引用!", tagColor: "amber", tagY: -36 });
+              u.o3.setState({ color: "black", tag: "跟着变黑存活", tagColor: "amber", tagY: -36 });
+              u.o6.setState({ color: "white", tag: "待回收", tagColor: "red", tagY: 34 });
+              u.c52.set({ ...Geom.connect(u.o5.pos, u.o2.pos), opacity: 0.15, dashed: true, cut: true });
+              u.c23.set({ ...Geom.connect(u.o2.pos, u.o3.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, opacity: 1 });
+              u.c42.set({ ...Geom.connect(u.o4.pos, u.o2.pos), curve: 26, opacity: 0 });
+              u.opBanner.set({ text: "灰色集合清空（结束无需 STW 重扫栈），但断链的 Obj2、Obj3 已变黑", color: "#92400e", bg: "#fbf5e6", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 5：清除与短板 — 仅回收 Obj6，Obj2/3 成为「浮动垃圾」拖到下轮清理",
+            desc: "Sweep 阶段仅回收了 <code>Obj6</code>。已彻底断链的 <code>Obj2、Obj3</code> 竟然活过了本轮 GC，只能等到下一轮 GC 才会被清理——这就是删除写屏障<strong>回收精度低（浮动垃圾）</strong>的短板。",
+            apply(u) {
+              u.stw.setMode("sweep", "🧹 清除完成：Obj2、Obj3 沦为浮动垃圾，需等下轮 GC 回收");
+              [u.o1, u.o4, u.o5].forEach(o => o.setState({ color: "black" }));
+              u.o2.setState({ color: "black", highlight: true, haloColor: "#d97706", tag: "浮动垃圾 (下轮清)", tagColor: "amber", tagY: -36 });
+              u.o3.setState({ color: "black", highlight: true, haloColor: "#d97706", tag: "浮动垃圾 (下轮清)", tagColor: "amber", tagY: 36 });
+              u.o6.setState({ color: "swept" });
+              u.c52.set({ ...Geom.connect(u.o5.pos, u.o2.pos), opacity: 0 });
+              u.c23.set({ ...Geom.connect(u.o2.pos, u.o3.pos), color: "#8c867c", markerEnd: u.marker("muted"), dashed: true, opacity: 0.7 });
+              u.c42.set({ ...Geom.connect(u.o4.pos, u.o2.pos), curve: 26, opacity: 0 });
+              u.opBanner.set({ text: "短板：起始需 STW 拍快照 + 回收精度低 → 催生 Go V1.8 混合写屏障！", color: "#24576b", bg: "#f3f1ea", opacity: 1 });
+            }
+          }
+        ]
+      },
+
+      /* ----------------------------------------------------------------------
+         场景 06：Go V1.8 混合写屏障 · 初始化阶段与 4 条核心规则
+         ---------------------------------------------------------------------- */
+      {
+        id: "scene-6",
+        num: "06",
+        badges: [{ text: "Go V1.8", ver: true }, { text: "混合写屏障" }, { text: "初始化与规则" }],
+        title: "Go V1.8 混合写屏障 · 启动阶段：栈区全黑、新建即黑与四大规则",
+        takeaway: "Go V1.8 融合插入与删除写屏障优点：GC 启动时将栈上可达对象直接扫黑，且 GC 期间栈上新建对象一律为黑，从此彻底告别结束时的 STW 重扫栈；堆上则同时对被删除与被添加对象染灰。",
+        viewBox: "0 0 880 442",
+        build(svg, defs) {
+          const { marker, sketch } = defs;
+          const bgLayer = el("g", {}, svg);
+          const lineLayer = el("g", {}, svg);
+          const nodeLayer = el("g", {}, svg);
+          const fxLayer = el("g", {}, svg);
+
+          const stw = Primitives.createStwBanner(fxLayer, 440, 26, sketch);
+
+          const stackZone = Primitives.createZone(bgLayer, {
+            x: 24, y: 52, w: 406, h: 314,
+            title: "栈空间 Stack", subtitle: "✕ 不开写屏障 · 初始全黑 · 新建即黑",
+            color: "#3b82f6", fill: "rgba(59,130,246,0.035)", dashed: true, sketchUrl: sketch
+          });
+
+          const heapZone = Primitives.createZone(bgLayer, {
+            x: 450, y: 52, w: 406, h: 314,
+            title: "堆空间 Heap", subtitle: "🛡 混合写屏障：删旧染灰 + 添新染灰",
+            color: "#7c3aed", fill: "rgba(124,58,237,0.035)", dashed: true, sketchUrl: sketch
+          });
+
+          const opBanner = Primitives.createCallout(fxLayer, {
+            x: 440, y: 404, text: "", color: "#5b21b6", bg: "#f4f0fa", maxW: 560, font: "mono", sketchUrl: sketch
+          });
+
+          // Stack nodes
+          const sRoot = Primitives.createRoot(nodeLayer, "Stack", 84, 152, { w: 74, h: 48, sub: "栈根", sketchUrl: sketch });
+          const s1 = Primitives.createObj(nodeLayer, "栈1", 198, 152, { r: 23, sketchUrl: sketch });
+          const s2 = Primitives.createObj(nodeLayer, "栈2", 318, 152, { r: 23, sketchUrl: sketch });
+          const s3 = Primitives.createObj(nodeLayer, "栈3", 318, 276, { r: 23, sketchUrl: sketch });
+          const s9 = Primitives.createObj(nodeLayer, "栈9", 198, 286, { r: 23, sketchUrl: sketch });
+
+          // Heap nodes
+          const h4 = Primitives.createObj(nodeLayer, "堆4", 548, 152, { r: 23, sketchUrl: sketch });
+          const h7 = Primitives.createObj(nodeLayer, "堆7", 698, 152, { r: 23, sketchUrl: sketch });
+          const h5 = Primitives.createObj(nodeLayer, "堆5", 548, 286, { r: 22, sketchUrl: sketch });
+          const h6 = Primitives.createObj(nodeLayer, "堆6", 698, 286, { r: 22, sketchUrl: sketch });
+
+          const cR1 = Primitives.createConnector(lineLayer, { color: "#3b82f6", markerEnd: marker("blue"), sketchUrl: sketch });
+          const c12 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c23 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c47 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c56 = Primitives.createConnector(lineLayer, { color: "#8c867c", dashed: true, markerEnd: marker("muted"), sketchUrl: sketch });
+
+          cR1.set(Geom.connect(sRoot.pos, s1.pos));
+          c12.set(Geom.connect(s1.pos, s2.pos));
+          c23.set(Geom.connect(s2.pos, s3.pos));
+          c47.set(Geom.connect(h4.pos, h7.pos));
+          c56.set(Geom.connect(h5.pos, h6.pos));
+
+          // Rules summary mini card inside Heap bottom (shown on step 4)
+          const ruleNote = Primitives.createCallout(fxLayer, {
+            x: 653, y: 218, text: "堆写屏障：shade(*slot) + shade(ptr)", color: "#5b21b6", bg: "#f4f0fa", maxW: 256, font: "mono", sketchUrl: sketch
+          });
+
+          return { stw, stackZone, heapZone, opBanner, sRoot, s1, s2, s3, s9, h4, h7, h5, h6, ruleNote };
+        },
+        steps: [
+          {
+            title: "步骤 1：GC 启动瞬间 — 全部对象初始为白色，准备并发扫栈",
+            desc: "进入 Go V1.8 GC 周期：初始时栈上与堆上的对象均为白色。混合写屏障<strong>不需要全局长 STW 拍快照</strong>，准备优先将各 Goroutine 的栈区逐一扫描变黑。",
+            apply(u) {
+              u.stw.setMode("running", "▶ Go V1.8 GC 启动：准备优先扫描栈区（无全局长 STW）");
+              u.stackZone.setHighlight(false, "#3b82f6");
+              u.heapZone.setHighlight(false, "#7c3aed");
+              u.sRoot.setState({ active: false });
+              [u.s1, u.s2, u.s3, u.h4, u.h7, u.h5, u.h6].forEach(o => o.setState({ color: "white" }));
+              u.s9.setState({ color: "white", opacity: 0 });
+              u.ruleNote.set({ opacity: 0 });
+              u.opBanner.set({ text: "规则准备：栈不启屏障靠「初始全黑 + 新建即黑」，堆启混合写屏障", color: "#24576b", bg: "#f3f1ea", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 2（规则 1）：扫描栈区，将栈上全部可达对象直接标记为黑色",
+            desc: "<strong>规则 1</strong>：GC 开始时优先扫描栈区，将栈上所有可达对象（<code>栈1、栈2、栈3</code>）全部染为<strong>黑色</strong>；扫描后整条栈保持黑色，之后<strong>绝不再二次 re-scan</strong>！",
+            apply(u) {
+              u.stw.setMode("barrier", "规则 1：扫描栈区 → 栈上可达对象全部染黑（后续不再重扫）");
+              u.stackZone.setHighlight(true, "#3b82f6");
+              u.heapZone.setHighlight(false, "#7c3aed");
+              u.sRoot.setState({ active: true });
+              [u.s1, u.s2, u.s3].forEach(o => o.setState({ color: "black", highlight: true, haloColor: "#3b82f6" }));
+              u.s3.setState({ color: "black", highlight: true, haloColor: "#3b82f6", tag: "栈已全黑 ✓", tagColor: "blue", tagY: 35 });
+              u.s9.setState({ color: "black", opacity: 0 });
+              [u.h4, u.h7, u.h5, u.h6].forEach(o => o.setState({ color: "white" }));
+              u.ruleNote.set({ opacity: 0 });
+              u.opBanner.set({ text: "规则 1：并发逐栈扫描变黑 → 彻底省去 V1.5 结束时的 STW 重扫栈！", color: "#1e40af", bg: "#eef4fb", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 3（规则 2）：GC 期间在栈上新创建的对象，出生即为黑色",
+            desc: "<strong>规则 2</strong>：在 GC 运行期间，只要在栈空间分配新对象（如 <code>new(栈9)</code>），直接标记为<strong>黑色</strong>，确保新栈对象无需写屏障也绝不会被误杀。",
+            apply(u) {
+              u.stw.setMode("barrier", "规则 2：GC 期间栈上新建对象（栈9）直接标记为黑色");
+              u.stackZone.setHighlight(true, "#3b82f6");
+              u.heapZone.setHighlight(false, "#7c3aed");
+              u.sRoot.setState({ active: false });
+              [u.s1, u.s2, u.s3].forEach(o => o.setState({ color: "black" }));
+              u.s9.setState({ color: "black", opacity: 1, highlight: true, haloColor: "#10b981", tag: "new → 直接黑 ✓", tagColor: "green", tagY: 36 });
+              [u.h4, u.h7, u.h5, u.h6].forEach(o => o.setState({ color: "white" }));
+              u.ruleNote.set({ opacity: 0 });
+              u.opBanner.set({ text: "规则 2：GC 期间 new(栈对象) 直接为黑，栈区保持零写屏障开销", color: "#065f46", bg: "#edf6ef", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 4（规则 3 & 4）：堆区开启混合写屏障（删旧染灰 + 添新染灰）",
+            desc: "<strong>规则 3 &amp; 4</strong>：堆空间启用混合写屏障——任何堆指针赋值 <code>*slot = ptr</code>，同时将<strong>被删除的旧下游 <code>*slot</code> 染灰</strong>，并将<strong>新添加的下游 <code>ptr</code> 染灰</strong>。接下来 4 个场景将逐一验证所有跨区引用迁移！",
+            apply(u) {
+              u.stw.setMode("barrier", "🛡 规则 3&4：堆区开启混合写屏障（删旧染灰 + 添新染灰）");
+              u.stackZone.setHighlight(false, "#3b82f6");
+              u.heapZone.setHighlight(true, "#7c3aed");
+              [u.s1, u.s2, u.s3, u.s9].forEach(o => o.setState({ color: "black" }));
+              u.h4.setState({ color: "gray", shield: true, highlight: true, haloColor: "#7c3aed" });
+              u.h7.setState({ color: "white" });
+              u.h5.setState({ color: "white" });
+              u.h6.setState({ color: "white" });
+              u.ruleNote.set({ x: 653, y: 218, opacity: 1 });
+              u.opBanner.set({ text: "writePointer(slot, ptr): shadeGray(*slot); shadeGray(ptr); *slot = ptr", color: "#5b21b6", bg: "#f4f0fa", opacity: 1 });
+            }
+          }
+        ]
+      },
+
+      /* ----------------------------------------------------------------------
+         场景 07：Go V1.8 混合写屏障 · 场景一（堆 → 栈）
+         ---------------------------------------------------------------------- */
+      {
+        id: "scene-7",
+        num: "07",
+        badges: [{ text: "Go V1.8", ver: true }, { text: "位置：堆 → 栈" }, { text: "删除规则兜底" }],
+        title: "混合写屏障 · 场景一（堆 → 栈）：对象被堆删引用，挂到栈对象下游",
+        takeaway: "当白色堆对象 7 先挂到黑色栈对象 1 下游（栈无屏障，7 仍白），再由堆对象 4 删除对 7 的引用时，堆上的「删除写屏障」规则立刻将 7 染灰，完美防止对象 7 漏标！",
+        viewBox: "0 0 880 442",
+        build(svg, defs) {
+          const { marker, sketch } = defs;
+          const bgLayer = el("g", {}, svg);
+          const lineLayer = el("g", {}, svg);
+          const nodeLayer = el("g", {}, svg);
+          const fxLayer = el("g", {}, svg);
+
+          const stw = Primitives.createStwBanner(fxLayer, 440, 26, sketch);
+
+          const stackZone = Primitives.createZone(bgLayer, {
+            x: 24, y: 52, w: 392, h: 314,
+            title: "栈空间 Stack（已全黑 · 无写屏障）",
+            color: "#3b82f6", fill: "rgba(59,130,246,0.035)", dashed: true, sketchUrl: sketch
+          });
+          const heapZone = Primitives.createZone(bgLayer, {
+            x: 440, y: 52, w: 416, h: 314,
+            title: "堆空间 Heap（混合写屏障开启 🛡）",
+            color: "#7c3aed", fill: "rgba(124,58,237,0.035)", dashed: true, sketchUrl: sketch
+          });
+
+          const opBanner = Primitives.createCallout(fxLayer, {
+            x: 440, y: 404, text: "", color: "#5b21b6", bg: "#f4f0fa", maxW: 540, font: "mono", sketchUrl: sketch
+          });
+
+          // Clean non-crossing layout: Stack1 on bottom-right of Stack, Heap7 on bottom-left of Heap!
+          const sRoot = Primitives.createRoot(nodeLayer, "Stack", 84, 218, { w: 74, h: 48, sub: "栈根", sketchUrl: sketch });
+          const s2 = Primitives.createObj(nodeLayer, "栈2", 206, 146, { r: 23, sketchUrl: sketch });
+          const s3 = Primitives.createObj(nodeLayer, "栈3", 336, 146, { r: 23, sketchUrl: sketch });
+          const s1 = Primitives.createObj(nodeLayer, "栈1", 268, 282, { r: 24, sketchUrl: sketch });
+
+          const h4 = Primitives.createObj(nodeLayer, "堆4", 548, 146, { r: 24, sketchUrl: sketch });
+          const h7 = Primitives.createObj(nodeLayer, "堆7", 548, 282, { r: 24, sketchUrl: sketch });
+          const h5 = Primitives.createObj(nodeLayer, "堆5", 756, 152, { r: 21, sketchUrl: sketch });
+          const h6 = Primitives.createObj(nodeLayer, "堆6", 756, 282, { r: 21, sketchUrl: sketch });
+
+          const cR2 = Primitives.createConnector(lineLayer, { color: "#3b82f6", markerEnd: marker("blue"), sketchUrl: sketch });
+          const cR1 = Primitives.createConnector(lineLayer, { color: "#3b82f6", markerEnd: marker("blue"), sketchUrl: sketch });
+          const c23 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c47 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c17 = Primitives.createConnector(lineLayer, { color: "#d97706", dashed: true, markerEnd: marker("amber"), flow: true, sketchUrl: sketch });
+          const c56 = Primitives.createConnector(lineLayer, { color: "#8c867c", dashed: true, markerEnd: marker("muted"), sketchUrl: sketch });
+
+          cR2.set(Geom.connect(sRoot.pos, s2.pos));
+          cR1.set(Geom.connect(sRoot.pos, s1.pos));
+          c23.set(Geom.connect(s2.pos, s3.pos));
+
+          return { stw, stackZone, heapZone, opBanner, s1, s2, s3, h4, h7, h5, h6, c47, c17, c56, marker };
+        },
+        steps: [
+          {
+            title: "初始状态：栈区对象已全黑，堆对象 4 持有白色堆对象 7 的引用",
+            desc: "混合写屏障初始化完成：栈上 <code>栈1、栈2、栈3</code> 均为<strong>黑色</strong>；堆上 <code>堆4</code>（尚未扫完）正指向白色 <code>堆7</code>，右侧 <code>堆5→堆6</code> 不可达。",
+            apply(u) {
+              u.stw.setMode("barrier", "🛡 场景一（堆 → 栈）：栈已全黑，堆4 引用白 堆7");
+              u.stackZone.setHighlight(false, "#3b82f6");
+              u.heapZone.setHighlight(false, "#7c3aed");
+              [u.s1, u.s2, u.s3].forEach(o => o.setState({ color: "black" }));
+              u.h4.setState({ color: "gray" });
+              u.h7.setState({ color: "white", tag: "堆上白色", tagColor: "slate", tagY: 36 });
+              u.h5.setState({ color: "white" });
+              u.h6.setState({ color: "white" });
+              u.c47.set({ ...Geom.connect(u.h4.pos, u.h7.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, cut: false, opacity: 1 });
+              u.c17.set({ ...Geom.connect(u.s1.pos, u.h7.pos), opacity: 0 });
+              u.c56.set({ ...Geom.connect(u.h5.pos, u.h6.pos), opacity: 0.8 });
+              u.opBanner.set({ text: "前提：堆4.ptr == 堆7  |  即将把 堆7 移挂到 栈1 下游", color: "#24576b", bg: "#f3f1ea", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 1：栈1.ptr = 堆7 — 栈空间无写屏障，堆7 暂时仍是白色！",
+            desc: "执行 <code>栈1.ptr = 堆7</code>，将白色 <code>堆7</code> 挂到黑色 <code>栈1</code> 下游。因为<strong>写操作发生在栈上</strong>，不触发写屏障，所以 <code>堆7</code> 此时仍为白色（看似危险，但 <code>堆4</code> 还连着它）。",
+            apply(u) {
+              u.stw.setMode("barrier", "步骤 1：栈1 指向 堆7（栈无写屏障，堆7 仍为白色）");
+              u.stackZone.setHighlight(true, "#3b82f6");
+              u.heapZone.setHighlight(false, "#7c3aed");
+              [u.s1, u.s2, u.s3].forEach(o => o.setState({ color: "black" }));
+              u.s1.setState({ color: "black", highlight: true, haloColor: "#3b82f6" });
+              u.h4.setState({ color: "gray" });
+              u.h7.setState({ color: "white", highlight: true, haloColor: "#d97706", tag: "栈写无屏障，仍白", tagColor: "amber", tagY: 36 });
+              u.h5.setState({ color: "white" });
+              u.h6.setState({ color: "white" });
+              u.c47.set({ ...Geom.connect(u.h4.pos, u.h7.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, cut: false, opacity: 1 });
+              u.c17.set({ ...Geom.connect(u.s1.pos, u.h7.pos), color: "#d97706", markerEnd: u.marker("amber"), dashed: true, flow: true, label: "栈1.ptr = 堆7（无屏障）", labelDy: -16, opacity: 1 });
+              u.c56.set({ ...Geom.connect(u.h5.pos, u.h6.pos), opacity: 0.8 });
+              u.opBanner.set({ text: "栈1.ptr = 堆7  // 栈无屏障，但堆4 仍在堆中引用着堆7", color: "#92400e", bg: "#fbf5e6", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 2：堆4.ptr = nil — 触发堆上混合写屏障（删除规则），堆7 强制染灰！",
+            desc: "接着在堆上执行 <code>堆4.ptr = nil</code> 删除引用！这次写操作发生在<strong>堆空间</strong>，立即触发混合写屏障的<strong>删除规则</strong>：将被删除的下游 <code>堆7</code> 强制染为<strong>灰色</strong>，彻底化解漏标危机！",
+            apply(u) {
+              u.stw.setMode("barrier", "🛡 堆区触发删除规则：堆4 断链瞬间将 堆7 强制染灰！");
+              u.stackZone.setHighlight(false, "#3b82f6");
+              u.heapZone.setHighlight(true, "#7c3aed");
+              [u.s1, u.s2, u.s3].forEach(o => o.setState({ color: "black" }));
+              u.h4.setState({ color: "gray" });
+              u.h7.setState({ color: "gray", highlight: true, shield: true, haloColor: "#7c3aed", tag: "删除规则染灰 ✓", tagColor: "purple", tagY: 36 });
+              u.h5.setState({ color: "white" });
+              u.h6.setState({ color: "white" });
+              u.c47.set({ ...Geom.connect(u.h4.pos, u.h7.pos), color: "#dc2626", markerEnd: u.marker("red"), dashed: true, cut: true, label: "堆删引用→染灰", opacity: 0.65 });
+              u.c17.set({ ...Geom.connect(u.s1.pos, u.h7.pos), color: "#3b82f6", markerEnd: u.marker("blue"), dashed: false, flow: false, label: "合法引用", labelDy: -16, opacity: 1 });
+              u.c56.set({ ...Geom.connect(u.h5.pos, u.h6.pos), opacity: 0.8 });
+              u.opBanner.set({ text: "堆4.ptr = nil → 触发混合写屏障(删除规则)：shadeGray(堆7)！", color: "#5b21b6", bg: "#f4f0fa", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 3：并发扫描完成，堆7 顺利变黑，无需 STW 重扫栈！",
+            desc: "灰色集合继续扫描：<code>堆4</code> 与刚被染灰的 <code>堆7</code> 依次扫描完毕变为<strong>黑色</strong>。整个过程既无需在栈上加屏障，也无需在标记结束后 STW 重扫栈！",
+            apply(u) {
+              u.stw.setMode("barrier", "✓ 并发扫描完成：堆4、堆7 变黑，全程零栈重扫");
+              u.stackZone.setHighlight(false, "#3b82f6");
+              u.heapZone.setHighlight(false, "#7c3aed");
+              [u.s1, u.s2, u.s3, u.h4, u.h7].forEach(o => o.setState({ color: "black" }));
+              u.h7.setState({ color: "black", highlight: true, haloColor: "#10b981", tag: "安全变黑 ✓", tagColor: "green", tagY: 36 });
+              u.h5.setState({ color: "white" });
+              u.h6.setState({ color: "white" });
+              u.c47.set({ ...Geom.connect(u.h4.pos, u.h7.pos), opacity: 0.14, dashed: true, cut: true });
+              u.c17.set({ ...Geom.connect(u.s1.pos, u.h7.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, opacity: 1 });
+              u.c56.set({ ...Geom.connect(u.h5.pos, u.h6.pos), opacity: 0.8 });
+              u.opBanner.set({ text: "结论：堆→栈 转移由「堆上删除写屏障」完美兜底保护", color: "#065f46", bg: "#edf6ef", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 4：清除不可达白垃圾（堆5、堆6），堆7 安然存活",
+            desc: "Sweep 清除未标记的 <code>堆5、堆6</code>；被 <code>栈1</code> 引用的 <code>堆7</code> 完整保留。",
+            apply(u) {
+              u.stw.setMode("sweep", "🧹 并发清除 堆5/6，场景一（堆 → 栈）验证完毕");
+              [u.s1, u.s2, u.s3, u.h4, u.h7].forEach(o => o.setState({ color: "black" }));
+              u.h7.setState({ color: "black", tag: "存活 ✓", tagColor: "green", tagY: 36 });
+              u.h5.setState({ color: "swept" });
+              u.h6.setState({ color: "swept" });
+              u.c47.set({ ...Geom.connect(u.h4.pos, u.h7.pos), opacity: 0 });
+              u.c17.set({ ...Geom.connect(u.s1.pos, u.h7.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, opacity: 1 });
+              u.c56.set({ ...Geom.connect(u.h5.pos, u.h6.pos), opacity: 0.2 });
+              u.opBanner.set({ text: "场景一（堆 → 栈）安全闭环：无 STW 重扫栈、无对象误杀", color: "#065f46", bg: "#edf6ef", opacity: 1 });
+            }
+          }
+        ]
+      },
+
+      /* ----------------------------------------------------------------------
+         场景 08：Go V1.8 混合写屏障 · 场景二（栈 → 栈，含延伸思考）
+         ---------------------------------------------------------------------- */
+      {
+        id: "scene-8",
+        num: "08",
+        badges: [{ text: "Go V1.8", ver: true }, { text: "位置：栈 → 栈" }, { text: "规则1+2 兜底" }],
+        title: "混合写屏障 · 场景二（栈 → 栈）：栈删引用，挂到新建栈对象下游",
+        takeaway: "由于 GC 开始时栈上可达对象均已染黑，且 GC 期间栈上新建对象直接为黑，因此栈对象之间的引用转移天然安全、无需写屏障！同时延伸澄清两个高频疑问：孤立白对象不可达故不可能被新栈对象引用；栈上孤立黑对象本轮不回收。",
+        viewBox: "0 0 880 442",
+        build(svg, defs) {
+          const { marker, sketch } = defs;
+          const bgLayer = el("g", {}, svg);
+          const lineLayer = el("g", {}, svg);
+          const nodeLayer = el("g", {}, svg);
+          const fxLayer = el("g", {}, svg);
+
+          const stw = Primitives.createStwBanner(fxLayer, 440, 26, sketch);
+
+          const stackZone = Primitives.createZone(bgLayer, {
+            x: 24, y: 52, w: 500, h: 314,
+            title: "栈空间 Stack（初始全黑 · 新建即黑 · 无写屏障）",
+            color: "#3b82f6", fill: "rgba(59,130,246,0.035)", dashed: true, sketchUrl: sketch
+          });
+          const heapZone = Primitives.createZone(bgLayer, {
+            x: 544, y: 52, w: 312, h: 314,
+            title: "堆空间 Heap（孤立对象对照）",
+            color: "#7c3aed", fill: "rgba(124,58,237,0.03)", dashed: true, sketchUrl: sketch
+          });
+
+          const opBanner = Primitives.createCallout(fxLayer, {
+            x: 440, y: 404, text: "", color: "#1e40af", bg: "#eef4fb", maxW: 560, font: "mono", sketchUrl: sketch
+          });
+
+          const sRoot = Primitives.createRoot(nodeLayer, "Stack", 84, 152, { w: 72, h: 48, sub: "栈根", sketchUrl: sketch });
+          const s1 = Primitives.createObj(nodeLayer, "栈1", 198, 152, { r: 23, sketchUrl: sketch });
+          const s2 = Primitives.createObj(nodeLayer, "栈2", 322, 152, { r: 23, sketchUrl: sketch });
+          const s3 = Primitives.createObj(nodeLayer, "栈3", 456, 152, { r: 23, sketchUrl: sketch });
+          const s9 = Primitives.createObj(nodeLayer, "栈9", 322, 286, { r: 23, sketchUrl: sketch });
+
+          const h4 = Primitives.createObj(nodeLayer, "堆4", 636, 152, { r: 23, sketchUrl: sketch });
+          const h7 = Primitives.createObj(nodeLayer, "堆7", 772, 152, { r: 23, sketchUrl: sketch });
+          const h5 = Primitives.createObj(nodeLayer, "堆5", 688, 286, { r: 22, sketchUrl: sketch });
+
+          const cR1 = Primitives.createConnector(lineLayer, { color: "#3b82f6", markerEnd: marker("blue"), sketchUrl: sketch });
+          const c12 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c23 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c93 = Primitives.createConnector(lineLayer, { color: "#10b981", dashed: true, markerEnd: marker("green"), flow: true, sketchUrl: sketch });
+          const c95 = Primitives.createConnector(lineLayer, { color: "#dc2626", dashed: true, markerEnd: marker("red"), sketchUrl: sketch });
+          const c47 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+
+          cR1.set(Geom.connect(sRoot.pos, s1.pos));
+          c12.set(Geom.connect(s1.pos, s2.pos));
+          c47.set(Geom.connect(h4.pos, h7.pos));
+
+          return { stw, stackZone, heapZone, opBanner, s1, s2, s3, s9, h4, h7, h5, c23, c93, c95, marker };
+        },
+        steps: [
+          {
+            title: "初始状态：栈上可达链路 栈1 → 栈2 → 栈3 已在 GC 启动时全部染黑",
+            desc: "混合写屏障规则 1 生效后，栈区对象 <code>栈1、栈2、栈3</code> 全部为黑色；右侧堆区 <code>堆5</code> 为孤立不可达的白色对象。",
+            apply(u) {
+              u.stw.setMode("barrier", "🛡 场景二（栈 → 栈）：栈区对象均已染黑");
+              u.stackZone.setHighlight(false, "#3b82f6");
+              [u.s1, u.s2, u.s3].forEach(o => o.setState({ color: "black" }));
+              u.s9.setState({ color: "black", opacity: 0 });
+              u.h4.setState({ color: "black" });
+              u.h7.setState({ color: "black" });
+              u.h5.setState({ color: "white", tag: "孤立白对象", tagColor: "slate", tagY: 35 });
+              u.c23.set({ ...Geom.connect(u.s2.pos, u.s3.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, cut: false, opacity: 1 });
+              u.c93.set({ ...Geom.connect(u.s9.pos, u.s3.pos), opacity: 0 });
+              u.c95.set({ ...Geom.connect(u.s9.pos, u.h5.pos), opacity: 0 });
+              u.opBanner.set({ text: "前提：栈1 → 栈2 → 栈3 全黑  |  即将新建 栈9 并转移 栈3 引用", color: "#24576b", bg: "#f3f1ea", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 1：new(栈9) — 遵循规则 2，GC 期间栈上新建对象直接标记为黑色",
+            desc: "业务在栈上新分配对象 <code>栈9</code>。根据混合写屏障<strong>规则 2</strong>，GC 期间任何在栈上新建的对象一律直接为<strong>黑色</strong>！",
+            apply(u) {
+              u.stw.setMode("barrier", "步骤 1：栈上 new(栈9) → 出生即为黑色");
+              u.stackZone.setHighlight(true, "#3b82f6");
+              [u.s1, u.s2, u.s3].forEach(o => o.setState({ color: "black" }));
+              u.s9.setState({ color: "black", opacity: 1, highlight: true, haloColor: "#10b981", tag: "规则2：新建即黑 ✓", tagColor: "green", tagY: 36 });
+              u.h4.setState({ color: "black" });
+              u.h7.setState({ color: "black" });
+              u.h5.setState({ color: "white" });
+              u.c23.set({ ...Geom.connect(u.s2.pos, u.s3.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, cut: false, opacity: 1 });
+              u.c93.set({ ...Geom.connect(u.s9.pos, u.s3.pos), opacity: 0 });
+              u.c95.set({ ...Geom.connect(u.s9.pos, u.h5.pos), opacity: 0 });
+              u.opBanner.set({ text: "new 栈9  // 规则 2：GC 期间栈上新建对象默认黑色", color: "#065f46", bg: "#edf6ef", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 2：栈9.ptr = 栈3 — 栈3 早已是黑色，黑指黑天然安全！",
+            desc: "执行 <code>栈9.ptr = 栈3</code> 将 <code>栈3</code> 挂在 <code>栈9</code> 下游。虽然栈空间没有写屏障，但 <code>栈3</code> 早在 GC 初始扫栈时就是<strong>黑色</strong>，黑色指向黑色绝不会产生漏标！",
+            apply(u) {
+              u.stw.setMode("barrier", "步骤 2：黑 栈9 → 黑 栈3（无需屏障，天然安全）");
+              u.stackZone.setHighlight(true, "#3b82f6");
+              [u.s1, u.s2].forEach(o => o.setState({ color: "black" }));
+              u.s3.setState({ color: "black", highlight: true, haloColor: "#10b981", tag: "本就是黑色 ✓", tagColor: "green", tagY: -36 });
+              u.s9.setState({ color: "black", opacity: 1 });
+              u.h4.setState({ color: "black" });
+              u.h7.setState({ color: "black" });
+              u.h5.setState({ color: "white" });
+              u.c23.set({ ...Geom.connect(u.s2.pos, u.s3.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, cut: false, opacity: 1 });
+              u.c93.set({ ...Geom.connect(u.s9.pos, u.s3.pos), color: "#10b981", markerEnd: u.marker("green"), dashed: true, flow: true, label: "黑 → 黑", opacity: 1 });
+              u.c95.set({ ...Geom.connect(u.s9.pos, u.h5.pos), opacity: 0 });
+              u.opBanner.set({ text: "栈9.ptr = 栈3  // 栈3 已黑，栈区零屏障开销也完全安全", color: "#065f46", bg: "#edf6ef", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 3：栈2.ptr = nil — 栈2 断开对 栈3 的引用，栈3 仍保持黑色存活",
+            desc: "随后 <code>栈2</code> 删除指向 <code>栈3</code> 的引用：栈区不触发写屏障，<code>栈3</code> 依然是黑色且被 <code>栈9</code> 合法引用，整个栈内转移完全安全。",
+            apply(u) {
+              u.stw.setMode("barrier", "步骤 3：栈2 断链 栈3，栈3 保持黑色由 栈9 持有");
+              u.stackZone.setHighlight(false, "#3b82f6");
+              [u.s1, u.s2, u.s9].forEach(o => o.setState({ color: "black" }));
+              u.s3.setState({ color: "black", highlight: true, haloColor: "#10b981", tag: "安全存活 ✓", tagColor: "green", tagY: -36 });
+              u.h4.setState({ color: "black" });
+              u.h7.setState({ color: "black" });
+              u.h5.setState({ color: "white" });
+              u.c23.set({ ...Geom.connect(u.s2.pos, u.s3.pos), color: "#dc2626", markerEnd: u.marker("red"), dashed: true, cut: true, label: "栈2.ptr = nil", opacity: 0.6 });
+              u.c93.set({ ...Geom.connect(u.s9.pos, u.s3.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, flow: false, opacity: 1 });
+              u.c95.set({ ...Geom.connect(u.s9.pos, u.h5.pos), opacity: 0 });
+              u.opBanner.set({ text: "栈2.ptr = nil  // 延伸思考：若无栈9接手，栈3 本轮不回收，留待下轮 GC", color: "#1e40af", bg: "#eef4fb", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 4（延伸思考）：栈9 能不能突然引用孤立白对象 堆5 导致误删？",
+            desc: "<strong>绝不可能！</strong><code>堆5</code> 是白色说明它已经彻底不可达（断链），程序代码根本拿不到 <code>堆5</code> 的指针！凡是程序能拿到的指针，要么在栈上（早已变黑），要么来自某堆对象（堆上删/改指针必触发混合写屏障染灰）。",
+            apply(u) {
+              u.stw.setMode("sweep", "💡 延伸澄清：孤立白色 堆5 不可达，栈9 根本看不见它！");
+              [u.s1, u.s2, u.s3, u.s9, u.h4, u.h7].forEach(o => o.setState({ color: "black" }));
+              u.h5.setState({ color: "swept", tag: "不可达 → 无法被引用", tagColor: "red", tagY: 36 });
+              u.c23.set({ ...Geom.connect(u.s2.pos, u.s3.pos), opacity: 0.15, dashed: true, cut: true });
+              u.c93.set({ ...Geom.connect(u.s9.pos, u.s3.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, opacity: 1 });
+              u.c95.set({ ...Geom.connect(u.s9.pos, u.h5.pos), color: "#dc2626", markerEnd: u.marker("red"), dashed: true, cut: true, label: "不可达！拿不到指针", opacity: 0.9 });
+              u.opBanner.set({ text: "结论：① 孤立白对象不可见，不可能被新挂；② 断链的黑色栈对象下轮 GC 回收", color: "#24576b", bg: "#f3f1ea", opacity: 1 });
+            }
+          }
+        ]
+      },
+
+      /* ----------------------------------------------------------------------
+         场景 09：Go V1.8 混合写屏障 · 场景三（堆 → 堆）
+         ---------------------------------------------------------------------- */
+      {
+        id: "scene-9",
+        num: "09",
+        badges: [{ text: "Go V1.8", ver: true }, { text: "位置：堆 → 堆" }, { text: "插入+删除双保险" }],
+        title: "混合写屏障 · 场景三（堆 → 堆）：对象被堆删引用，挂到另一堆对象下游",
+        takeaway: "堆对象 10（黑）新增引用指向堆对象 7（白）时触发插入规则染灰 7；堆对象 4 删除对 7 的引用时再次触发删除规则确保 7 为灰——堆内迁移享有「插入 + 删除」双重屏障保护！",
+        viewBox: "0 0 880 442",
+        build(svg, defs) {
+          const { marker, sketch } = defs;
+          const bgLayer = el("g", {}, svg);
+          const lineLayer = el("g", {}, svg);
+          const nodeLayer = el("g", {}, svg);
+          const fxLayer = el("g", {}, svg);
+
+          const stw = Primitives.createStwBanner(fxLayer, 440, 26, sketch);
+
+          Primitives.createZone(bgLayer, {
+            x: 24, y: 52, w: 196, h: 314,
+            title: "栈空间 Stack", subtitle: "已全黑",
+            color: "#3b82f6", fill: "rgba(59,130,246,0.03)", dashed: true, sketchUrl: sketch
+          });
+          const heapZone = Primitives.createZone(bgLayer, {
+            x: 240, y: 52, w: 616, h: 314,
+            title: "堆空间 Heap（混合写屏障开启 🛡）", subtitle: "双向保护：添新染灰 + 删旧染灰",
+            color: "#7c3aed", fill: "rgba(124,58,237,0.035)", dashed: true, sketchUrl: sketch
+          });
+
+          const opBanner = Primitives.createCallout(fxLayer, {
+            x: 440, y: 404, text: "", color: "#5b21b6", bg: "#f4f0fa", maxW: 540, font: "mono", sketchUrl: sketch
+          });
+
+          // Quiet stack context
+          const s1 = Primitives.createObj(nodeLayer, "栈1", 122, 152, { r: 22, sketchUrl: sketch });
+          const s2 = Primitives.createObj(nodeLayer, "栈2", 122, 278, { r: 22, sketchUrl: sketch });
+          const cS12 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          cS12.set(Geom.connect(s1.pos, s2.pos));
+
+          // Heap objects
+          const h4  = Primitives.createObj(nodeLayer, "堆4", 346, 146, { r: 24, sketchUrl: sketch });
+          const h10 = Primitives.createObj(nodeLayer, "堆10", 346, 286, { r: 24, sketchUrl: sketch });
+          const h7  = Primitives.createObj(nodeLayer, "堆7", 564, 216, { r: 25, sketchUrl: sketch });
+          const h5  = Primitives.createObj(nodeLayer, "堆5", 760, 146, { r: 21, sketchUrl: sketch });
+          const h6  = Primitives.createObj(nodeLayer, "堆6", 760, 286, { r: 21, sketchUrl: sketch });
+
+          const c47  = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c107 = Primitives.createConnector(lineLayer, { color: "#7c3aed", dashed: true, markerEnd: marker("purple"), flow: true, sketchUrl: sketch });
+          const c56  = Primitives.createConnector(lineLayer, { color: "#8c867c", dashed: true, markerEnd: marker("muted"), sketchUrl: sketch });
+
+          return { stw, heapZone, opBanner, s1, s2, h4, h10, h7, h5, h6, c47, c107, c56, marker };
+        },
+        steps: [
+          {
+            title: "初始状态：堆10 已为黑色，堆4（灰）正引用白色 堆7",
+            desc: "堆空间中：已扫描完毕的黑色 <code>堆10</code> 与尚未扫完的灰色 <code>堆4</code> 共存，<code>堆4</code> 持有白色 <code>堆7</code> 的引用；右侧 <code>堆5→堆6</code> 不可达。",
+            apply(u) {
+              u.stw.setMode("barrier", "🛡 场景三（堆 → 堆）：黑 堆10 即将接管 堆4 下游的 堆7");
+              u.heapZone.setHighlight(false, "#7c3aed");
+              u.s1.setState({ color: "black" });
+              u.s2.setState({ color: "black" });
+              u.h4.setState({ color: "gray" });
+              u.h10.setState({ color: "black", tag: "已扫黑", tagColor: "slate", tagY: 36 });
+              u.h7.setState({ color: "white", tag: "待迁移目标", tagColor: "slate", tagY: 37 });
+              u.h5.setState({ color: "white" });
+              u.h6.setState({ color: "white" });
+              u.c47.set({ ...Geom.connect(u.h4.pos, u.h7.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, cut: false, opacity: 1 });
+              u.c107.set({ ...Geom.connect(u.h10.pos, u.h7.pos), opacity: 0 });
+              u.c56.set({ ...Geom.connect(u.h5.pos, u.h6.pos), opacity: 0.8 });
+              u.opBanner.set({ text: "前提：堆4.ptr == 堆7  |  堆10(黑) 准备新增引用指向 堆7(白)", color: "#24576b", bg: "#f3f1ea", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 1：堆10.ptr = 堆7 — 触发堆上混合写屏障（插入规则），堆7 立即染灰！",
+            desc: "黑色 <code>堆10</code> 新增指针指向白色 <code>堆7</code>：因为发生在<strong>堆空间</strong>，立即触发混合写屏障的<strong>插入规则</strong>——将新下游 <code>堆7</code> 强制染为<strong>灰色</strong>！",
+            apply(u) {
+              u.stw.setMode("barrier", "🛡 触发插入规则：黑 堆10 → 白 堆7，堆7 瞬间染灰！");
+              u.heapZone.setHighlight(true, "#7c3aed");
+              u.s1.setState({ color: "black" });
+              u.s2.setState({ color: "black" });
+              u.h4.setState({ color: "gray" });
+              u.h10.setState({ color: "black", highlight: true, haloColor: "#7c3aed" });
+              u.h7.setState({ color: "gray", highlight: true, shield: true, haloColor: "#7c3aed", tag: "插入规则染灰 ✓", tagColor: "purple", tagY: 37 });
+              u.h5.setState({ color: "white" });
+              u.h6.setState({ color: "white" });
+              u.c47.set({ ...Geom.connect(u.h4.pos, u.h7.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, cut: false, opacity: 1 });
+              u.c107.set({ ...Geom.connect(u.h10.pos, u.h7.pos), color: "#7c3aed", markerEnd: u.marker("purple"), dashed: true, flow: true, label: "插入规则→染灰", labelDy: 16, opacity: 1 });
+              u.c56.set({ ...Geom.connect(u.h5.pos, u.h6.pos), opacity: 0.8 });
+              u.opBanner.set({ text: "堆10.ptr = 堆7 → 混合写屏障(插入规则)：shadeGray(堆7)！", color: "#5b21b6", bg: "#f4f0fa", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 2：堆4.ptr = nil — 再触发删除规则确认 堆7 染灰，随后断开旧链",
+            desc: "随后 <code>堆4</code> 删除指向 <code>堆7</code> 的引用：再次触发堆上混合写屏障的<strong>删除规则</strong>（将旧下游 <code>堆7</code> 染灰，当前已是灰色），再安全断开 <code>堆4 → 堆7</code>！",
+            apply(u) {
+              u.stw.setMode("barrier", "🛡 触发删除规则：堆4 断链 堆7，双重保护万无一失");
+              u.heapZone.setHighlight(true, "#7c3aed");
+              u.s1.setState({ color: "black" });
+              u.s2.setState({ color: "black" });
+              u.h4.setState({ color: "gray" });
+              u.h10.setState({ color: "black" });
+              u.h7.setState({ color: "gray", highlight: true, shield: true, haloColor: "#7c3aed", tag: "灰态受保护 ✓", tagColor: "purple", tagY: 37 });
+              u.h5.setState({ color: "white" });
+              u.h6.setState({ color: "white" });
+              u.c47.set({ ...Geom.connect(u.h4.pos, u.h7.pos), color: "#dc2626", markerEnd: u.marker("red"), dashed: true, cut: true, label: "堆4.ptr = nil", opacity: 0.6 });
+              u.c107.set({ ...Geom.connect(u.h10.pos, u.h7.pos), color: "#7c3aed", markerEnd: u.marker("purple"), dashed: false, flow: false, label: "堆10 合法持有", labelDy: 16, opacity: 1 });
+              u.c56.set({ ...Geom.connect(u.h5.pos, u.h6.pos), opacity: 0.8 });
+              u.opBanner.set({ text: "堆4.ptr = nil → 即使先删后加，删除规则同样会在断链前将 堆7 染灰！", color: "#5b21b6", bg: "#f4f0fa", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 3：并发扫描灰色对象 — 堆4、堆7 依次扫描完成变为黑色",
+            desc: "GC 正常遍历灰色集合：<code>堆4</code> 和 <code>堆7</code>（及其全部下游）都会被完整扫描并标记为<strong>黑色</strong>。",
+            apply(u) {
+              u.stw.setMode("barrier", "✓ 并发扫描完成：堆4、堆7 均转为黑色");
+              u.heapZone.setHighlight(false, "#7c3aed");
+              [u.s1, u.s2, u.h4, u.h10, u.h7].forEach(o => o.setState({ color: "black" }));
+              u.h7.setState({ color: "black", highlight: true, haloColor: "#10b981", tag: "安全变黑 ✓", tagColor: "green", tagY: 37 });
+              u.h5.setState({ color: "white" });
+              u.h6.setState({ color: "white" });
+              u.c47.set({ ...Geom.connect(u.h4.pos, u.h7.pos), opacity: 0.14, dashed: true, cut: true });
+              u.c107.set({ ...Geom.connect(u.h10.pos, u.h7.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, opacity: 1 });
+              u.c56.set({ ...Geom.connect(u.h5.pos, u.h6.pos), opacity: 0.8 });
+              u.opBanner.set({ text: "灰色集合清空：堆7 及下游均安全染黑", color: "#065f46", bg: "#edf6ef", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 4：清除白垃圾（堆5、堆6），场景三（堆 → 堆）完美闭环",
+            desc: "清除不可达的 <code>堆5、堆6</code>；<code>堆10 → 堆7</code> 安然存活。无论操作顺序是「先加后删」还是「先删后加」，混合写屏障都在堆上提供双保险！",
+            apply(u) {
+              u.stw.setMode("sweep", "🧹 并发清除 堆5/6，场景三（堆 → 堆）验证完毕");
+              [u.s1, u.s2, u.h4, u.h10, u.h7].forEach(o => o.setState({ color: "black" }));
+              u.h7.setState({ color: "black", tag: "存活 ✓", tagColor: "green", tagY: 37 });
+              u.h5.setState({ color: "swept" });
+              u.h6.setState({ color: "swept" });
+              u.c47.set({ ...Geom.connect(u.h4.pos, u.h7.pos), opacity: 0 });
+              u.c107.set({ ...Geom.connect(u.h10.pos, u.h7.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, opacity: 1 });
+              u.c56.set({ ...Geom.connect(u.h5.pos, u.h6.pos), opacity: 0.2 });
+              u.opBanner.set({ text: "场景三（堆 → 堆）安全闭环：插入 + 删除双规则护航", color: "#065f46", bg: "#edf6ef", opacity: 1 });
+            }
+          }
+        ]
+      },
+
+      /* ----------------------------------------------------------------------
+         场景 10：Go V1.8 混合写屏障 · 场景四（栈 → 堆）
+         ---------------------------------------------------------------------- */
+      {
+        id: "scene-10",
+        num: "10",
+        badges: [{ text: "Go V1.8", ver: true }, { text: "位置：栈 → 堆" }, { text: "保护新旧下游" }],
+        title: "混合写屏障 · 场景四（栈 → 堆）：栈删引用，对象转挂堆对象下游",
+        takeaway: "当堆对象 4 将指针从旧下游堆 7 改指向原本挂在栈对象 1 下的对象 2 时，堆上混合写屏障同时保护旧下游（堆 7 染灰）与新下游（确保对象 2 受保护，即便源栈尚未扫完也绝不漏标），随后栈 1 断链也完全安全！",
+        viewBox: "0 0 880 442",
+        build(svg, defs) {
+          const { marker, sketch } = defs;
+          const bgLayer = el("g", {}, svg);
+          const lineLayer = el("g", {}, svg);
+          const nodeLayer = el("g", {}, svg);
+          const fxLayer = el("g", {}, svg);
+
+          const stw = Primitives.createStwBanner(fxLayer, 440, 26, sketch);
+
+          const stackZone = Primitives.createZone(bgLayer, {
+            x: 24, y: 52, w: 388, h: 314,
+            title: "栈空间 Stack（无写屏障）", subtitle: "对象2 即将从栈1 下游迁出",
+            color: "#3b82f6", fill: "rgba(59,130,246,0.035)", dashed: true, sketchUrl: sketch
+          });
+          const heapZone = Primitives.createZone(bgLayer, {
+            x: 432, y: 52, w: 424, h: 314,
+            title: "堆空间 Heap（混合写屏障开启 🛡）", subtitle: "写指针同时保护旧槽位 + 新目标",
+            color: "#7c3aed", fill: "rgba(124,58,237,0.035)", dashed: true, sketchUrl: sketch
+          });
+
+          const opBanner = Primitives.createCallout(fxLayer, {
+            x: 440, y: 404, text: "", color: "#5b21b6", bg: "#f4f0fa", maxW: 560, font: "mono", sketchUrl: sketch
+          });
+
+          const sRoot = Primitives.createRoot(nodeLayer, "Stack", 80, 166, { w: 70, h: 48, sub: "栈根", sketchUrl: sketch });
+          const s1 = Primitives.createObj(nodeLayer, "栈1", 196, 166, { r: 23, sketchUrl: sketch });
+          const s2 = Primitives.createObj(nodeLayer, "对象2", 334, 166, { r: 24, sketchUrl: sketch });
+          const s3 = Primitives.createObj(nodeLayer, "对象3", 334, 290, { r: 23, sketchUrl: sketch });
+
+          const h4 = Primitives.createObj(nodeLayer, "堆4", 558, 166, { r: 24, sketchUrl: sketch });
+          const h7 = Primitives.createObj(nodeLayer, "堆7", 754, 166, { r: 24, sketchUrl: sketch });
+          const h5 = Primitives.createObj(nodeLayer, "堆5", 656, 290, { r: 22, sketchUrl: sketch });
+
+          const cR1 = Primitives.createConnector(lineLayer, { color: "#3b82f6", markerEnd: marker("blue"), sketchUrl: sketch });
+          const c12 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c23 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c47 = Primitives.createConnector(lineLayer, { color: "#57534e", markerEnd: marker("slate"), sketchUrl: sketch });
+          const c42 = Primitives.createConnector(lineLayer, { color: "#7c3aed", dashed: true, markerEnd: marker("purple"), flow: true, sketchUrl: sketch });
+
+          cR1.set(Geom.connect(sRoot.pos, s1.pos));
+          c23.set(Geom.connect(s2.pos, s3.pos));
+
+          return { stw, stackZone, heapZone, opBanner, s1, s2, s3, h4, h7, h5, c12, c47, c42, marker };
+        },
+        steps: [
+          {
+            title: "初始状态：栈1 → 对象2 → 对象3（栈引用），堆4（黑）→ 旧下游 堆7（白）",
+            desc: "并发标记进行中：左侧栈上 <code>栈1 → 对象2 → 对象3</code>（假设所在栈已完成扫描为黑，或即便尚未扫完为白也能被屏障兜底）；右侧堆上黑色 <code>堆4</code> 原本指向白色 <code>堆7</code>，<code>堆5</code> 不可达。",
+            apply(u) {
+              u.stw.setMode("barrier", "🛡 场景四（栈 → 堆）：堆4 准备改指向栈上的 对象2");
+              u.stackZone.setHighlight(false, "#3b82f6");
+              u.heapZone.setHighlight(false, "#7c3aed");
+              u.s1.setState({ color: "black" });
+              u.s2.setState({ color: "black", tag: "栈1下游", tagColor: "blue", tagY: -36 });
+              u.s3.setState({ color: "black" });
+              u.h4.setState({ color: "black" });
+              u.h7.setState({ color: "white", tag: "堆4旧下游", tagColor: "slate", tagY: -36 });
+              u.h5.setState({ color: "white", tag: "不可达", tagColor: "slate", tagY: 35 });
+              u.c12.set({ ...Geom.connect(u.s1.pos, u.s2.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, cut: false, opacity: 1 });
+              u.c47.set({ ...Geom.connect(u.h4.pos, u.h7.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, cut: false, opacity: 1 });
+              u.c42.set({ ...Geom.connect(u.h4.pos, u.s2.pos), opacity: 0 });
+              u.opBanner.set({ text: "前提：栈1→对象2，堆4→堆7  |  即将执行 堆4.ptr = 对象2; 栈1.ptr = nil", color: "#24576b", bg: "#f3f1ea", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 1：堆4.ptr = 对象2 — 触发堆上混合写屏障，同时保护旧 堆7 与新 对象2！",
+            desc: "堆对象 <code>堆4</code> 把指针从 <code>堆7</code> 改指向 <code>对象2</code>！立即触发<strong>混合写屏障</strong>：① 被替换/删除的旧下游 <code>堆7</code> 强制染<strong>灰</strong>（删除规则）；② 新下游 <code>对象2</code> 亦受插入规则保护（即便源栈尚未扫完仍是白色，也会立刻染灰）！",
+            apply(u) {
+              u.stw.setMode("barrier", "🛡 堆区混合写屏障双触发：旧下游 堆7 染灰 + 新下游 对象2 受保护！");
+              u.stackZone.setHighlight(false, "#3b82f6");
+              u.heapZone.setHighlight(true, "#7c3aed");
+              u.s1.setState({ color: "black" });
+              u.s2.setState({ color: "gray", highlight: true, shield: true, haloColor: "#7c3aed", tag: "插入规则保底染灰 ✓", tagColor: "purple", tagY: -36 });
+              u.s3.setState({ color: "black" });
+              u.h4.setState({ color: "black", highlight: true, haloColor: "#7c3aed" });
+              u.h7.setState({ color: "gray", highlight: true, shield: true, haloColor: "#7c3aed", tag: "删除规则染灰 ✓", tagColor: "purple", tagY: -36 });
+              u.h5.setState({ color: "white" });
+              u.c12.set({ ...Geom.connect(u.s1.pos, u.s2.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, cut: false, opacity: 1 });
+              u.c47.set({ ...Geom.connect(u.h4.pos, u.h7.pos), color: "#dc2626", markerEnd: u.marker("red"), dashed: true, cut: true, label: "旧引用覆盖→染灰", opacity: 0.7 });
+              u.c42.set({ ...Geom.connect(u.h4.pos, u.s2.pos), color: "#7c3aed", markerEnd: u.marker("purple"), dashed: true, flow: true, label: "堆4.ptr = 对象2", labelDy: -18, opacity: 1 });
+              u.opBanner.set({ text: "堆4.ptr = 对象2 → shadeGray(旧堆7) + shadeGray(新对象2)！", color: "#5b21b6", bg: "#f4f0fa", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 2：栈1.ptr = nil — 栈对象删除对 对象2 的引用，零屏障也绝不漏标！",
+            desc: "随后 <code>栈1</code> 删除指向 <code>对象2</code> 的引用。虽然栈上没有写屏障，但 <code>对象2</code> 已被堆上混合写屏障安全保护（且挂在 <code>堆4</code> 下游），其下游 <code>对象3</code> 同样安全无虞！",
+            apply(u) {
+              u.stw.setMode("barrier", "步骤 2：栈1 断链 对象2（栈无屏障，但 对象2 已被堆屏障保护）");
+              u.stackZone.setHighlight(true, "#3b82f6");
+              u.heapZone.setHighlight(false, "#7c3aed");
+              u.s1.setState({ color: "black" });
+              u.s2.setState({ color: "gray", shield: true, highlight: true, haloColor: "#10b981", tag: "安全由堆4持有 ✓", tagColor: "green", tagY: -36 });
+              u.s3.setState({ color: "black" });
+              u.h4.setState({ color: "black" });
+              u.h7.setState({ color: "gray", shield: true, tag: "旧下游受保护 ✓", tagColor: "purple", tagY: -36 });
+              u.h5.setState({ color: "white" });
+              u.c12.set({ ...Geom.connect(u.s1.pos, u.s2.pos), color: "#dc2626", markerEnd: u.marker("red"), dashed: true, cut: true, label: "栈1.ptr = nil", opacity: 0.6 });
+              u.c47.set({ ...Geom.connect(u.h4.pos, u.h7.pos), opacity: 0.18, dashed: true, cut: true });
+              u.c42.set({ ...Geom.connect(u.h4.pos, u.s2.pos), color: "#7c3aed", markerEnd: u.marker("purple"), dashed: false, flow: false, label: "跨区合法引用", labelDy: -18, opacity: 1 });
+              u.opBanner.set({ text: "栈1.ptr = nil  // 栈无写屏障，对象2 与旧 堆7 均处于安全保护中", color: "#1e40af", bg: "#eef4fb", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 3：并发标记收尾 — 对象2、对象3、堆7 全部扫描变黑，无需 STW 重扫栈！",
+            desc: "灰色对象 <code>对象2</code> 与 <code>堆7</code> 扫描完毕转为黑色，灰色集合彻底清空。由于栈在启动时已并发扫黑并由混合写屏障全程兜底，<strong>标记结束无需 STW 重扫栈</strong>！",
+            apply(u) {
+              u.stw.setMode("barrier", "✓ 灰色集合清空：所有可达对象安全变黑，零 STW 重扫栈");
+              u.stackZone.setHighlight(false, "#3b82f6");
+              u.heapZone.setHighlight(false, "#7c3aed");
+              [u.s1, u.s2, u.s3, u.h4, u.h7].forEach(o => o.setState({ color: "black" }));
+              u.s2.setState({ color: "black", highlight: true, haloColor: "#10b981", tag: "存活 ✓", tagColor: "green", tagY: -36 });
+              u.h7.setState({ color: "black", tag: "本轮保护存活", tagColor: "slate", tagY: -36 });
+              u.h5.setState({ color: "white", tag: "待清除", tagColor: "red", tagY: 35 });
+              u.c12.set({ ...Geom.connect(u.s1.pos, u.s2.pos), opacity: 0.14, dashed: true, cut: true });
+              u.c47.set({ ...Geom.connect(u.h4.pos, u.h7.pos), opacity: 0 });
+              u.c42.set({ ...Geom.connect(u.h4.pos, u.s2.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, opacity: 1 });
+              u.opBanner.set({ text: "无需 STW Re-scan Stack！极短收尾即可进入并发 Sweep", color: "#065f46", bg: "#edf6ef", opacity: 1 });
+            }
+          },
+          {
+            title: "步骤 4：并发清除不可达的 堆5 — Go V1.8 混合写屏障四大场景全通关",
+            desc: "Sweep 清除不可达的白色 <code>堆5</code>。至此，Go V1.8 混合写屏障在<strong>堆→栈、栈→栈、堆→堆、栈→堆</strong>全部四种跨区迁移场景中都实现零漏标，同时把 STW 压到亚毫秒级！",
+            apply(u) {
+              u.stw.setMode("sweep", "🧹 并发清除 堆5 — 混合写屏障四大迁移场景全通关！");
+              [u.s1, u.s2, u.s3, u.h4, u.h7].forEach(o => o.setState({ color: "black" }));
+              u.h5.setState({ color: "swept" });
+              u.c12.set({ ...Geom.connect(u.s1.pos, u.s2.pos), opacity: 0 });
+              u.c47.set({ ...Geom.connect(u.h4.pos, u.h7.pos), opacity: 0 });
+              u.c42.set({ ...Geom.connect(u.h4.pos, u.s2.pos), color: "#57534e", markerEnd: u.marker("slate"), dashed: false, opacity: 1 });
+              u.opBanner.set({ text: "Go V1.8 总结：栈不开屏障（初始扫黑+新建即黑）+ 堆开混合屏障 → 高效且低停顿", color: "#065f46", bg: "#edf6ef", opacity: 1 });
+            }
+          }
+        ]
+      }
+    ];
+
+    /* ========================================================================
+       5. Reusable Interactive Scene Controller Class (Matches GMP Article)
+       ======================================================================== */
+    class GCSceneController {
+      constructor(config, container) {
+        this.config = config;
+        this.totalSteps = config.steps.length;
+        this.currentStep = 0;
+        this.isPlaying = false;
+        this.speed = 1;
+        this.timer = null;
+
+        this.card = this._renderCard(container);
+        this.svg = this.card.querySelector(".scene-svg");
+        this.defs = addSvgDefs(this.svg, config.id);
+        this.ui = config.build(this.svg, this.defs);
+
+        this._bindControls();
+        this.goTo(0);
+      }
+
+      _renderCard(container) {
+        const section = document.createElement("section");
+        section.className = "scene-card";
+        section.id = this.config.id;
+        const badgesHtml = (this.config.badges || [])
+          .map(b => `<span class="scene-badge${b.ver ? " ver" : ""}">${b.text}</span>`)
+          .join("");
+
+        section.innerHTML = `
+          <header class="scene-header">
+            <div class="scene-meta-row">
+              <span class="scene-num">${this.config.num}</span>
+              <h2>${this.config.title}</h2>
+              <div class="scene-badges">${badgesHtml}</div>
+            </div>
+            <p class="scene-takeaway">
+              <span class="takeaway-label">核心结论</span>${this.config.takeaway}
+            </p>
+          </header>
+
+          <div class="sketch-frame">
+            <div class="scene-stage">
+              <svg class="scene-svg" viewBox="${this.config.viewBox}" role="img" aria-label="${this.config.title}"></svg>
+            </div>
+
+            <div class="scene-controls">
+              <div class="ctrl-group">
+                <button type="button" class="ctrl-btn primary btn-play" aria-label="播放或暂停">
+                  <svg class="icon-play" viewBox="0 0 16 16"><path d="M4 2.8l9.5 5.2L4 13.2z"/></svg>
+                  <svg class="icon-pause" viewBox="0 0 16 16" style="display:none;"><rect x="3.5" y="2.8" width="3.2" height="10.4" rx="0.6"/><rect x="9.3" y="2.8" width="3.2" height="10.4" rx="0.6"/></svg>
+                  <span class="play-text">播放</span>
+                </button>
+                <button type="button" class="ctrl-btn btn-prev" title="上一步">上一步</button>
+                <button type="button" class="ctrl-btn btn-next" title="下一步">下一步</button>
+                <button type="button" class="ctrl-btn btn-reset" title="重置到初始状态">重置</button>
+              </div>
+
+              <div class="progress-wrap">
+                <div class="step-segments" role="group" aria-label="步骤进度条"></div>
+                <span class="step-counter">Step 1 / ${this.totalSteps}</span>
+              </div>
+
+              <div class="speed-group" role="group" aria-label="倍速控制">
+                <button type="button" class="speed-btn" data-speed="0.5">0.5x</button>
+                <button type="button" class="speed-btn active" data-speed="1">1x</button>
+                <button type="button" class="speed-btn" data-speed="2">2x</button>
+              </div>
+            </div>
+
+            <div class="scene-explain">
+              <div class="explain-head">
+                <span class="explain-step-tag">Step 1 / ${this.totalSteps}</span>
+                <span class="explain-title"></span>
+              </div>
+              <p class="explain-body"></p>
+            </div>
+          </div>
+        `;
+
+        const segWrap = section.querySelector(".step-segments");
+        for (let i = 0; i < this.totalSteps; i++) {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "step-seg";
+          btn.title = `跳转到 Step ${i + 1}`;
+          btn.addEventListener("click", () => {
+            this.pause();
+            this.goTo(i);
+          });
+          segWrap.appendChild(btn);
+        }
+
+        container.appendChild(section);
+        return section;
+      }
+
+      _bindControls() {
+        this.btnPlay = this.card.querySelector(".btn-play");
+        this.iconPlay = this.card.querySelector(".icon-play");
+        this.iconPause = this.card.querySelector(".icon-pause");
+        this.playText = this.card.querySelector(".play-text");
+        this.btnPrev = this.card.querySelector(".btn-prev");
+        this.btnNext = this.card.querySelector(".btn-next");
+        this.btnReset = this.card.querySelector(".btn-reset");
+        this.stepCounter = this.card.querySelector(".step-counter");
+        this.segments = Array.from(this.card.querySelectorAll(".step-seg"));
+        this.explainTag = this.card.querySelector(".explain-step-tag");
+        this.explainTitle = this.card.querySelector(".explain-title");
+        this.explainBody = this.card.querySelector(".explain-body");
+        this.speedBtns = Array.from(this.card.querySelectorAll(".speed-btn"));
+
+        this.btnPlay.addEventListener("click", () => this.togglePlay());
+        this.btnPrev.addEventListener("click", () => { this.pause(); this.goTo(this.currentStep - 1); });
+        this.btnNext.addEventListener("click", () => { this.pause(); this.goTo(this.currentStep + 1); });
+        this.btnReset.addEventListener("click", () => { this.pause(); this.goTo(0); });
+
+        this.speedBtns.forEach(btn => {
+          btn.addEventListener("click", () => {
+            this.setSpeed(parseFloat(btn.dataset.speed));
+          });
+        });
+      }
+
+      setSpeed(sp) {
+        this.speed = sp;
+        const dur = (0.65 / sp).toFixed(2) + "s";
+        this.card.style.setProperty("--anim-dur", dur);
+        this.speedBtns.forEach(b => b.classList.toggle("active", parseFloat(b.dataset.speed) === sp));
+        if (this.isPlaying) {
+          this._clearTimer();
+          this._scheduleNext();
+        }
+      }
+
+      togglePlay() {
+        if (this.isPlaying) {
+          this.pause();
+        } else {
+          if (this.currentStep >= this.totalSteps - 1) {
+            this.goTo(0);
+          }
+          this.isPlaying = true;
+          this._updatePlayBtn();
+          this._scheduleNext();
+        }
+      }
+
+      pause() {
+        this.isPlaying = false;
+        this._clearTimer();
+        this._updatePlayBtn();
+      }
+
+      _clearTimer() {
+        if (this.timer) {
+          clearTimeout(this.timer);
+          this.timer = null;
+        }
+      }
+
+      _scheduleNext() {
+        const delay = Math.round(2800 / this.speed);
+        this.timer = setTimeout(() => {
+          if (!this.isPlaying) return;
+          if (this.currentStep < this.totalSteps - 1) {
+            this.goTo(this.currentStep + 1);
+            if (this.currentStep < this.totalSteps - 1) {
+              this._scheduleNext();
+            } else {
+              this.pause();
+            }
+          } else {
+            this.pause();
+          }
+        }, delay);
+      }
+
+      _updatePlayBtn() {
+        this.iconPlay.style.display = this.isPlaying ? "none" : "block";
+        this.iconPause.style.display = this.isPlaying ? "block" : "none";
+        this.playText.textContent = this.isPlaying ? "暂停" : "播放";
+      }
+
+      goTo(idx) {
+        const clamped = Math.max(0, Math.min(this.totalSteps - 1, idx));
+        this.currentStep = clamped;
+        const stepObj = this.config.steps[clamped];
+        stepObj.apply(this.ui);
+
+        const label = `Step ${clamped + 1} / ${this.totalSteps}`;
+        this.stepCounter.textContent = label;
+        this.explainTag.textContent = label;
+        this.explainTitle.textContent = stepObj.title;
+        this.explainBody.innerHTML = stepObj.desc;
+
+        this.btnPrev.disabled = clamped === 0;
+        this.btnNext.disabled = clamped === this.totalSteps - 1;
+
+        this.segments.forEach((seg, i) => {
+          seg.classList.toggle("current", i === clamped);
+          seg.classList.toggle("done", i < clamped);
+        });
+      }
+    }
+
+    /* ========================================================================
+       6. Mount All 10 Scenarios & Sticky Margin TOC Active Spy
+       ======================================================================== */
+    const scenesRoot = document.getElementById("scenes-root");
+    SCENES_CONFIG.forEach(cfg => new GCSceneController(cfg, scenesRoot));
+
+    (function initTocSpy() {
+      const tocLinks = Array.from(document.querySelectorAll(".toc-link"));
+      const sections = tocLinks
+        .map(link => document.querySelector(link.getAttribute("href")))
+        .filter(Boolean);
+
+      function setActive(id) {
+        tocLinks.forEach(link => {
+          link.classList.toggle("active", link.getAttribute("href") === "#" + id);
+        });
+      }
+
+      if ("IntersectionObserver" in window) {
+        const observer = new IntersectionObserver(entries => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              setActive(entry.target.id);
+            }
+          });
+        }, {
+          rootMargin: "-12% 0px -70% 0px",
+          threshold: 0
+        });
+        sections.forEach(sec => observer.observe(sec));
+      }
+    })();
+  })();
+  </script>
+</body>
+</html>
